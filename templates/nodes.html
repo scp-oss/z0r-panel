@@ -15,10 +15,25 @@
 
 {% if new_token %}
 <div class="card">
-  <h3>Новый токен — показывается один раз</h3>
+  <h3>Новая нода — показывается один раз</h3>
+  {% if panel_public_url %}
+  <p class="muted">
+    Готовый блок — вставь ЦЕЛИКОМ в <code>z0r</code> (пункт 22, режим БД "2"),
+    когда попросит вставить <code>PANEL_URL</code>/<code>PANEL_NODE_TOKEN</code>
+    (по мотивам того, как Remnawave выдаёт готовый docker-compose.yml вместо
+    ручного ввода host/port/token по отдельности):
+  </p>
+  <pre class="token-box">PANEL_URL={{ panel_public_url }}
+PANEL_NODE_TOKEN={{ new_token }}</pre>
+  {% else %}
   <div class="token-box">{{ new_token }}</div>
   <p class="muted">
-    Скопируй сейчас. В БД хранится только его хэш — повторно посмотреть нельзя,
+    (<code>PANEL_PUBLIC_URL</code> не задан в <code>.env</code> панели — показан
+    только токен, <code>PANEL_URL</code> впиши на ноде сам.)
+  </p>
+  {% endif %}
+  <p class="muted">
+    Скопируй сейчас. В БД хранится только хэш токена — повторно посмотреть нельзя,
     только перевыпустить новый. UUID этой ноды: <code class="mono">{{ new_token_uuid }}</code>
     — имя и провайдер появятся в таблице ниже сами, после первого обращения ноды к панели.
   </p>

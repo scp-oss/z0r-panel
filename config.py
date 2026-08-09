@@ -76,6 +76,13 @@ PANEL_PORT = int(_get("PANEL_PORT", "8766"))
 # http и логин будет молча "не держаться").
 PANEL_COOKIE_HTTPS_ONLY = _get("PANEL_COOKIE_HTTPS_ONLY", "true").lower() == "true"
 
+# Внешний адрес самой панели (для готового блока KEY=value при создании
+# токена ноды, см. main.py::create_node -- PANEL_HOST/PANEL_PORT это
+# адрес БИНДА, не обязательно то же самое, что видно снаружи через
+# Cloudflare). Не задан -- просто не показываем PANEL_URL в блоке,
+# оператор впишет его сам вручную (не критично, лучшее усилие).
+PANEL_PUBLIC_URL = _get("PANEL_PUBLIC_URL", "")
+
 # Локальное окружение -- то, за которое панель показывает control-статус
 # через set_strategy_cli.sh (только `get`/`max`, никогда `set` -- панель
 # ничего не применяет сама, см. README "Границы ответственности панели").

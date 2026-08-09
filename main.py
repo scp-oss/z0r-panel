@@ -129,7 +129,10 @@ def create_node(request: Request, user: str = Depends(auth.require_login)):
         conn.close()
     return templates.TemplateResponse(
         request, "nodes.html",
-        {"user": user, "environments": environments, "new_token": token, "new_token_uuid": node_uuid},
+        {
+            "user": user, "environments": environments, "new_token": token, "new_token_uuid": node_uuid,
+            "panel_public_url": config.PANEL_PUBLIC_URL,
+        },
     )
 
 
