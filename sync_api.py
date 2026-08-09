@@ -73,9 +73,13 @@ def pull(profile: str, min_pulls: int = 3, limit: int = 20, node: dict = Depends
 @router.get("/bootstrap")
 def bootstrap(profile: str, min_pulls: int = 3, limit: int = 10, node: dict = Depends(auth.require_node)):
     """Для СВЕЖЕЙ ноды перед первым прогоном main.py -- см.
-    orchestrator/bootstrap.py. node['provider'] берётся из токена самой
-    ноды (см. auth.require_node), не из query-параметра -- нода не может
-    запросить чужой provider-tier, представившись кем-то другим."""
+    orchestrator/bootstrap.py. node['provider'] берётся из self-report
+    этой же ноды (см. auth.require_node -- X-Node-Provider на каждый
+    запрос, включая этот самый), не из query-параметра -- нода не может
+    запросить чужой provider-tier, представившись кем-то другим ЧУЖИМ
+    токеном, но своим собственным провайдером управляет сама (как и
+    раньше управлял оператор при ручном вводе в UI -- тот же уровень
+    доверия, просто источник значения переехал)."""
     conn = db.connect()
     try:
         rows = db.bootstrap_candidates(conn, profile, node["provider"], min_pulls=min_pulls, limit=limit)

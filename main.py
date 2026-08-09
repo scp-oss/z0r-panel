@@ -110,21 +110,26 @@ def nodes_page(request: Request, user: str = Depends(auth.require_login)):
         conn.close()
     return templates.TemplateResponse(
         request, "nodes.html",
-        {"user": user, "environments": environments, "new_token": None, "new_token_name": None},
+        {"user": user, "environments": environments, "new_token": None, "new_token_uuid": None},
     )
 
 
 @app.post("/nodes")
-def create_node(request: Request, name: str = Form(...), provider: str = Form(...), user: str = Depends(auth.require_login)):
+def create_node(request: Request, user: str = Depends(auth.require_login)):
+    """Токен создаётся ПУСТЫМ -- ни имя, ни провайдер тут не спрашиваются
+    (см. db.create_node): нода сообщает их сама при первом обращении к
+    панели, из своих ZENITH_ENVIRONMENT_NAME/PROVIDER -- то же значение
+    оператор и так вводит на самой ноде при установке, вводить второй раз
+    в этой форме незачем."""
     conn = db.connect()
     try:
-        token = db.create_node(conn, name.strip(), provider.strip())
+        token, node_uuid = db.create_node(conn)
         environments = db.list_environments(conn)
     finally:
         conn.close()
     return templates.TemplateResponse(
         request, "nodes.html",
-        {"user": user, "environments": environments, "new_token": token, "new_token_name": name},
+        {"user": user, "environments": environments, "new_token": token, "new_token_uuid": node_uuid},
     )
 
 

@@ -7,6 +7,7 @@ config.py) -- отдельной схемы для панели нет. Част
 import hashlib
 import json
 import secrets
+import uuid
 
 import mysql.connector
 
@@ -30,26 +31,51 @@ def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-def create_node(conn, name: str, provider: str) -> str:
-    """Создаёт (или перевыпускает токен для уже существующей) ноду.
-    Токен показывается ОДИН раз в UI в момент создания -- в БД лежит
-    только его sha256, как пароль."""
+def create_node(conn) -> tuple:
+    """Создаёт ПУСТУЮ ноду -- только токен + node_uuid, без имени/
+    провайдера (см. схему: их сообщает сама нода при первом push, из
+    собственных ZENITH_ENVIRONMENT_NAME/PROVIDER -- незачем вводить то
+    же самое значение второй раз в веб-форме). name временно =
+    'pending-<uuid8>' (UNIQUE NOT NULL требует хоть какое-то значение),
+    перезаписывается на реальное при self-report. Токен показывается
+    ОДИН раз в UI в момент создания -- в БД лежит только его sha256."""
     token = secrets.token_urlsafe(32)
     token_hash = hash_token(token)
+    node_uuid = str(uuid.uuid4())
+    placeholder_name = f"pending-{node_uuid[:8]}"
     cur = conn.cursor()
     cur.execute(
-        """INSERT INTO environments (name, provider, api_token_hash)
-           VALUES (%s, %s, %s) AS new
-           ON DUPLICATE KEY UPDATE provider=new.provider, api_token_hash=new.api_token_hash""",
-        (name, provider, token_hash),
+        """INSERT INTO environments (name, provider, api_token_hash, node_uuid)
+           VALUES (%s, NULL, %s, %s)""",
+        (placeholder_name, token_hash, node_uuid),
     )
-    return token
+    return token, node_uuid
+
+
+def self_report_node(conn, environment_id: int, name: str, provider: str) -> bool:
+    """Нода сообщает своё реальное имя/провайдера при push (см.
+    sync_api.py::push) -- перезаписывает placeholder ('pending-<uuid8>')
+    или любое предыдущее значение, идемпотентно на каждый push (если
+    оператор потом поменяет ZENITH_ENVIRONMENT_NAME локально -- панель
+    сама подхватит на следующей синхронизации, без ручного вмешательства).
+    Возвращает False при конфликте имени с ДРУГОЙ нодой (name UNIQUE) --
+    вызывающий код должен сообщить об этом ноде понятной ошибкой, а не
+    затирать чужую запись."""
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "UPDATE environments SET name=%s, provider=%s WHERE id=%s",
+            (name, provider, environment_id),
+        )
+        return True
+    except mysql.connector.errors.IntegrityError:
+        return False
 
 
 def get_environment_by_token(conn, token: str):
     cur = conn.cursor(dictionary=True)
     cur.execute(
-        "SELECT id, name, provider FROM environments WHERE api_token_hash=%s AND active=1",
+        "SELECT id, name, provider, node_uuid FROM environments WHERE api_token_hash=%s AND active=1",
         (hash_token(token),),
     )
     return cur.fetchone()
@@ -74,7 +100,7 @@ def touch_node_sync(conn, environment_id: int):
 def list_environments(conn):
     cur = conn.cursor(dictionary=True)
     cur.execute(
-        """SELECT e.id, e.name, e.provider, e.is_production, e.active,
+        """SELECT e.id, e.name, e.provider, e.node_uuid, e.is_production, e.active,
                   e.api_token_hash IS NOT NULL AS is_remote_node,
                   e.last_sync_at, e.created_at,
                   COUNT(DISTINCT gs.genome_id) AS genome_count,
@@ -82,7 +108,7 @@ def list_environments(conn):
            FROM environments e
            LEFT JOIN genome_scores gs ON gs.environment_id = e.id
            GROUP BY e.id
-           ORDER BY e.is_production DESC, e.name""",
+           ORDER BY e.is_production DESC, (e.provider IS NULL), e.name""",
     )
     return cur.fetchall()
 
