@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Zenith — база знаний{% endblock %}
+{% block content %}
+<h1>База знаний по семействам</h1>
+<p class="muted">
+  Паттерны (family+fooling+ttl_mode), а не конкретные геномы с конкретными
+  блобами — переносимый уровень. Чем больше <b>провайдеров</b> у строки,
+  тем более общий (не завязанный на DPI одного оператора) это паттерн.
+  Ровно то, на чём строится <code>/api/v1/sync/bootstrap</code> — новая
+  нода первым делом пробует provider-специфичные геномы своего провайдера,
+  затем universal-паттерны с 2+ провайдерами, и только потом падает в
+  обычный генератор+мутации.
+</p>
+<table>
+  <tr><th>Профиль</th><th>Family</th><th>Fooling</th><th>TTL</th><th>Провайдеров</th><th>Геномов</th><th>Прогонов</th><th>avg_score</th></tr>
+  {% for r in rollup %}
+  <tr {% if r.distinct_providers >= 2 %}style="background:#1a2a1e"{% endif %}>
+    <td>{{ r.profile }}</td>
+    <td><span class="pill">{{ r.family }}</span></td>
+    <td>{{ r.fooling or '—' }}</td>
+    <td>{{ r.ttl_mode or '—' }}</td>
+    <td>{% if r.distinct_providers >= 2 %}<span class="pill ok">{{ r.distinct_providers }}</span>{% else %}{{ r.distinct_providers }}{% endif %}</td>
+    <td>{{ r.distinct_genomes }}</td>
+    <td>{{ r.total_pulls }}</td>
+    <td>{{ r.avg_score }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="8" class="muted">Пока данных нет — накопится по мере того, как ноды на разных провайдерах прогонят свои профили и засинкаются.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

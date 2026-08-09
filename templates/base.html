@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Zenith{% endblock %}</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: -apple-system, Segoe UI, Roboto, sans-serif;
+    background: #14161a; color: #e6e6e6; font-size: 14px;
+  }
+  header {
+    display: flex; align-items: center; gap: 24px; padding: 10px 20px;
+    background: #1b1e24; border-bottom: 1px solid #2a2e37;
+  }
+  header a { color: #9fb4ff; text-decoration: none; font-weight: 600; }
+  header a:hover { text-decoration: underline; }
+  header .spacer { flex: 1; }
+  header .user { color: #888; }
+  main { padding: 20px; max-width: 1200px; margin: 0 auto; }
+  h1, h2, h3 { font-weight: 600; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0 24px; }
+  th, td { padding: 6px 10px; border-bottom: 1px solid #2a2e37; text-align: left; vertical-align: top; }
+  th { color: #9aa0ac; font-weight: 600; font-size: 12px; text-transform: uppercase; }
+  tr:hover td { background: #1c1f26; }
+  code, .mono { font-family: SFMono-Regular, Consolas, monospace; font-size: 12.5px; }
+  .pill {
+    display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px;
+    background: #2a2e37; color: #ccc;
+  }
+  .pill.prod { background: #37331f; color: #e0c060; }
+  .pill.remote { background: #1f3337; color: #5ec9d6; }
+  .pill.ok { background: #1f3722; color: #6fd67d; }
+  .pill.warn { background: #3a2620; color: #e08a5f; }
+  a.gid { color: #9fb4ff; }
+  form.inline { display: inline; }
+  input, select, button {
+    background: #22252c; border: 1px solid #363b46; color: #e6e6e6;
+    padding: 6px 10px; border-radius: 6px; font-size: 13px;
+  }
+  button { cursor: pointer; background: #2c3550; border-color: #3d4a72; }
+  button:hover { background: #34406b; }
+  .card {
+    background: #1b1e24; border: 1px solid #2a2e37; border-radius: 8px;
+    padding: 16px 20px; margin-bottom: 20px;
+  }
+  .muted { color: #888; }
+  .token-box {
+    font-family: monospace; background: #0f1a12; border: 1px solid #2e5c3a;
+    color: #8fe6a0; padding: 12px; border-radius: 6px; word-break: break-all;
+  }
+  .flash { padding: 8px 14px; border-radius: 6px; margin-bottom: 16px; background: #2a2e37; }
+  .flash.error { background: #3a2620; color: #e08a5f; }
+</style>
+</head>
+<body>
+<header>
+  <a href="/">Zenith</a>
+  <a href="/nodes">Ноды</a>
+  <a href="/knowledge">База знаний</a>
+  <a href="/controls">Статус профилей</a>
+  <div class="spacer"></div>
+  {% if user %}<span class="user">{{ user }} · <a href="/logout">выйти</a></span>{% endif %}
+</header>
+<main>
+{% block content %}{% endblock %}
+</main>
+</body>
+</html>

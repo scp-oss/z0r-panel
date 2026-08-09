@@ -1,0 +1,14 @@
+[Unit]
+Description=z0r-panel (Zenith web panel: dashboard + node sync API)
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=zenith-panel
+WorkingDirectory=/opt/z2r_autobench/z0r-panel
+ExecStart=/opt/z2r_autobench/z0r-panel/run.sh
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

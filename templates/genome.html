@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Zenith — геном {{ genome.id[:12] }}{% endblock %}
+{% block content %}
+<h1 class="mono">{{ genome.id[:16] }}…</h1>
+
+<div class="card">
+  <p><code class="mono">{{ genome.rendered_args }}</code></p>
+  <p>
+    профиль: <b>{{ genome.profile }}</b> ·
+    family: <span class="pill">{{ genome.family }}</span> ·
+    источник: <span class="pill">{{ genome.source }}</span> ·
+    поколение: {{ genome.generation }}
+    {% if genome.mutation_op %} · оператор: <code>{{ genome.mutation_op }}</code>{% endif %}
+  </p>
+  <p class="muted">создан: {{ genome.created_at }}</p>
+</div>
+
+<div class="card">
+  <h3>Результаты по нодам</h3>
+  <table>
+    <tr><th>Нода</th><th>Провайдер</th><th>Прогонов</th><th>Успехов</th><th>avg_score</th><th>Боевой сейчас</th></tr>
+    {% for s in scores %}
+    <tr>
+      <td>{{ s.environment_name }}</td>
+      <td>{{ s.provider }}</td>
+      <td>{{ s.pulls }}</td>
+      <td>{{ s.successes }}</td>
+      <td>{{ s.avg_score }}</td>
+      <td>{% if s.is_production %}<span class="pill ok">да</span>{% else %}—{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+
+<div class="card">
+  <h3>История мутаций (предки)</h3>
+  <table>
+    <tr><th>Геном</th><th>Оператор</th><th>Поколение</th><th>Создан</th></tr>
+    {% for a in ancestors %}
+    <tr {% if a.id == genome.id %}style="background:#20242c"{% endif %}>
+      <td><a class="gid mono" href="/genome/{{ a.id }}">{{ a.id[:14] }}…</a> <code class="mono">{{ a.rendered_args[:60] }}</code></td>
+      <td>{{ a.mutation_op or '(сид)' }}</td>
+      <td>{{ a.generation }}</td>
+      <td>{{ a.created_at }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+
+<div class="card">
+  <h3>Потомки (что породил дальше)</h3>
+  {% if children %}
+  <table>
+    <tr><th>Геном</th><th>Оператор</th><th>Поколение</th><th>Создан</th></tr>
+    {% for c in children %}
+    <tr>
+      <td><a class="gid mono" href="/genome/{{ c.id }}">{{ c.id[:14] }}…</a> <code class="mono">{{ c.rendered_args[:60] }}</code></td>
+      <td>{{ c.mutation_op or '—' }}</td>
+      <td>{{ c.generation }}</td>
+      <td>{{ c.created_at }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="muted">Пока никто не унаследовал (либо ещё не мутировался, либо это лист текущего поколения).</p>
+  {% endif %}
+</div>
+{% endblock %}

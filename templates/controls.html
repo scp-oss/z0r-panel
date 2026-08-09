@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Zenith — статус профилей{% endblock %}
+{% block content %}
+<h1>Статус профилей (локальная нода: {{ local_env_name }})</h1>
+<p class="muted">
+  Только чтение — <code>set_strategy_cli.sh get/max</code>. Панель ничего не
+  применяет в боевой конфиг сама (см. README «Границы ответственности
+  панели») — для продвижения генома в прод используй
+  <code>promote.py</code> руками, как обычно; здесь только видно, что уже
+  залочено и какие геномы Zenith нашёл лучшими локально.
+</p>
+
+<table>
+  <tr><th>Профиль</th><th>№</th><th>proto</th><th>Залочена strategy=</th><th>max strategy=</th></tr>
+  {% for row in profile_status %}
+  <tr>
+    <td>{{ row.profile }}</td>
+    <td>{{ row.num }}</td>
+    <td>{{ row.proto }}</td>
+    <td>{% if row.locked is not none %}{{ row.locked }}{% else %}<span class="pill warn">ошибка чтения</span>{% endif %}</td>
+    <td>{% if row.max is not none %}{{ row.max }}{% else %}<span class="pill warn">ошибка чтения</span>{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table>
+
+{% for profile, rows in by_profile.items() %}
+<div class="card">
+  <h3>{{ profile }} — лучшие геномы локально ({{ local_env_name }})</h3>
+  <table>
+    <tr><th>Геном</th><th>Family</th><th>Прогонов</th><th>Успехов</th><th>avg_score</th></tr>
+    {% for r in rows %}
+    <tr {% if r.family == 'control' %}style="opacity:.7"{% endif %}>
+      <td><a class="gid mono" href="/genome/{{ r.id }}">{{ r.rendered_args[:70] }}</a></td>
+      <td><span class="pill{% if r.family == 'control' %} prod{% endif %}">{{ r.family }}</span></td>
+      <td>{{ r.pulls }}</td>
+      <td>{{ r.successes }}</td>
+      <td>{{ r.avg_score }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endfor %}
+{% endblock %}

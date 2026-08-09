@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Zenith — ноды{% endblock %}
+{% block content %}
+<h1>Ноды</h1>
+<p class="muted">
+  Локальная (прод) нода пишет в эту БД напрямую — токен ей не нужен. Удалённые
+  ноды (другие провайдеры) получают токен здесь, ставят его в свой
+  <code>.env</code> (<code>ZENITH_PANEL_URL</code>/<code>ZENITH_PANEL_TOKEN</code>) и
+  синкаются через <code>orchestrator/sync_client.py</code> — см. README.
+</p>
+
+{% if new_token %}
+<div class="card">
+  <h3>Токен для «{{ new_token_name }}» — показывается один раз</h3>
+  <div class="token-box">{{ new_token }}</div>
+  <p class="muted">Скопируй сейчас. В БД хранится только его хэш — повторно посмотреть нельзя,
+  только перевыпустить (форма ниже сгенерирует новый и инвалидирует старый).</p>
+</div>
+{% endif %}
+
+<div class="card">
+  <h3>Добавить / перевыпустить ноду</h3>
+  <form method="post" action="/nodes">
+    <input name="name" placeholder="имя, напр. vm-rostelecom" required>
+    <input name="provider" placeholder="провайдер, напр. rostelecom" required>
+    <button type="submit">Создать токен</button>
+  </form>
+</div>
+
+<table>
+  <tr><th>Имя</th><th>Провайдер</th><th>Тип</th><th>Геномов</th><th>Прогонов всего</th><th>Последний sync</th><th>Создана</th></tr>
+  {% for e in environments %}
+  <tr>
+    <td>{{ e.name }}</td>
+    <td>{{ e.provider }}</td>
+    <td>
+      {% if e.is_production %}<span class="pill prod">prod, локальная</span>
+      {% elif e.is_remote_node %}<span class="pill remote">удалённая нода</span>
+      {% else %}<span class="pill">локальная</span>{% endif %}
+    </td>
+    <td>{{ e.genome_count }}</td>
+    <td>{{ e.total_pulls }}</td>
+    <td>{{ e.last_sync_at or '—' }}</td>
+    <td>{{ e.created_at }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endblock %}

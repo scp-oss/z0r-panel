@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Zenith — обзор{% endblock %}
+{% block content %}
+<h1>Обзор по профилям и провайдерам</h1>
+<p class="muted">Лучший на сегодня геном на каждую пару профиль×нода (по avg_score среди уже опробованных, control исключён).</p>
+
+{% for profile, rows in by_profile.items() %}
+<div class="card">
+  <h2>{{ profile }}</h2>
+  <table>
+    <tr><th>Нода</th><th>Провайдер</th><th>Геном</th><th>Источник</th><th>Прогонов</th><th>Успехов</th><th>avg_score</th></tr>
+    {% for r in rows %}
+    <tr>
+      <td>{{ r.environment_name }} {% if r.is_production %}<span class="pill prod">prod</span>{% endif %}</td>
+      <td>{{ r.provider }}</td>
+      <td><a class="gid mono" href="/genome/{{ r.genome_id }}">{{ r.rendered_args[:70] }}{% if r.rendered_args|length > 70 %}…{% endif %}</a></td>
+      <td><span class="pill">{{ r.source }}</span></td>
+      <td>{{ r.pulls }}</td>
+      <td>{{ r.successes }}</td>
+      <td>{{ r.avg_score }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% else %}
+<p class="muted">Пока нет ни одного прогона ни в одном окружении.</p>
+{% endfor %}
+{% endblock %}
