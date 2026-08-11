@@ -59,7 +59,8 @@ PANEL_NODE_TOKEN={{ new_token }}</pre>
     <td>{{ e.name }}</td>
     <td>
       {% if e.is_production %}<span class="pill prod">prod, локальная</span>
-      {% elif e.is_remote_node %}<span class="pill remote">удалённая нода</span>
+      {% elif e.is_remote_node %}<span class="pill remote">удалённая, HTTP-sync</span>
+      {% elif e.node_uuid %}<span class="pill remote">удалённая, прямая БД</span>
       {% else %}<span class="pill">локальная</span>{% endif %}
     </td>
     <td>{{ e.genome_count }}</td>
