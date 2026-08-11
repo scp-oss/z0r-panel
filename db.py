@@ -361,6 +361,134 @@ def knowledge_family_rollup(conn):
     return cur.fetchall()
 
 
+# --------------------------------------------------- realtime node DB API --
+# Для нод в ZENITH_DB_MODE=api (своей БД нет вообще, см. orchestrator/
+# db_api.py) -- те же запросы, что orchestrator/db.py делает напрямую в
+# MySQL, но здесь, за Bearer-токеном ноды (см. db_api.py router и
+# auth.require_node). environment_id ВСЕГДА берётся из токена запроса,
+# никогда не из тела запроса -- иначе одна нода могла бы дописывать в
+# чужой environment_id, просто подставив его в JSON.
+
+def get_domains_for_profile(conn, profile: str):
+    cur = conn.cursor(dictionary=True)
+    cur.execute(
+        """SELECT id, host, path, min_bytes FROM domain_pool
+           WHERE profile_hint=%s
+             AND (quarantined_until IS NULL OR quarantined_until < NOW())""",
+        (profile,),
+    )
+    return cur.fetchall()
+
+
+def insert_genome(conn, g: dict) -> str:
+    cur = conn.cursor()
+    cur.execute(
+        """INSERT IGNORE INTO genomes
+           (id, profile, filter_type, family, fooling, ttl_mode, fake_payload,
+            params_json, rendered_args, source, parent1_id, parent2_id,
+            mutation_op, generation)
+           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+        (
+            g["id"], g["profile"], g["filter_type"], g["family"], g.get("fooling"),
+            g.get("ttl_mode"), g.get("fake_payload"),
+            json.dumps(g["params_json"], ensure_ascii=False)
+            if isinstance(g["params_json"], dict) else g["params_json"],
+            g["rendered_args"], g["source"], g.get("parent1_id"), g.get("parent2_id"),
+            g.get("mutation_op"), g.get("generation", 0),
+        ),
+    )
+    return g["id"]
+
+
+def insert_control_genome(conn, profile: str, lines: list) -> str:
+    rendered = "\n".join(lines)
+    gid = hashlib.sha256(f"{profile}:{rendered}".encode()).hexdigest()
+    cur = conn.cursor()
+    cur.execute(
+        """INSERT IGNORE INTO genomes
+           (id, profile, filter_type, family, fooling, ttl_mode, fake_payload,
+            params_json, rendered_args, source, generation)
+           VALUES (%s,%s,'tcp/443','control',NULL,NULL,NULL,%s,%s,'manual',0)""",
+        (gid, profile, json.dumps({"lines": lines}, ensure_ascii=False), rendered),
+    )
+    return gid
+
+
+def record_experiment(conn, environment_id, genome_id, domain_id, success, bytes_, latency_ms, ban_suspected=False):
+    cur = conn.cursor()
+    cur.execute(
+        """INSERT INTO experiments
+           (genome_id, environment_id, domain_id, success, bytes, latency_ms, ban_suspected)
+           VALUES (%s,%s,%s,%s,%s,%s,%s)""",
+        (genome_id, environment_id, domain_id, success, bytes_, latency_ms, ban_suspected),
+    )
+
+
+def upsert_genome_score(conn, environment_id, genome_id, success: bool, reward: float):
+    cur = conn.cursor()
+    cur.execute(
+        """INSERT INTO genome_scores (genome_id, environment_id, pulls, successes, total_reward)
+           VALUES (%s,%s,1,%s,%s)
+           ON DUPLICATE KEY UPDATE
+             pulls = pulls + 1,
+             successes = successes + %s,
+             total_reward = total_reward + %s""",
+        (genome_id, environment_id, int(success), reward, int(success), reward),
+    )
+
+
+def upsert_operator_stat(conn, environment_id, filter_type, operator, reward):
+    if not operator:
+        return
+    cur = conn.cursor()
+    cur.execute(
+        """INSERT INTO operator_stats (environment_id, filter_type, operator, pulls, total_reward)
+           VALUES (%s,%s,%s,1,%s)
+           ON DUPLICATE KEY UPDATE pulls = pulls + 1, total_reward = total_reward + %s""",
+        (environment_id, filter_type, operator, reward, reward),
+    )
+
+
+def get_operator_stats(conn, environment_id, filter_type):
+    cur = conn.cursor(dictionary=True)
+    cur.execute(
+        "SELECT operator, pulls, total_reward FROM operator_stats WHERE environment_id=%s AND filter_type=%s",
+        (environment_id, filter_type),
+    )
+    return {row["operator"]: row for row in cur.fetchall()}
+
+
+def get_genomes_with_scores(conn, profile: str, environment_id: int):
+    cur = conn.cursor(dictionary=True)
+    cur.execute(
+        """SELECT g.params_json, g.generation, gs.pulls, gs.total_reward
+           FROM genome_scores gs
+           JOIN genomes g ON g.id = gs.genome_id AND g.profile = %s
+           WHERE gs.environment_id = %s AND gs.pulls > 0 AND g.family != 'control'""",
+        (profile, environment_id),
+    )
+    return cur.fetchall()
+
+
+def recent_domain_experiments(conn, domain_id, limit=5):
+    cur = conn.cursor(dictionary=True)
+    cur.execute(
+        """SELECT genome_id, success FROM experiments
+           WHERE domain_id=%s ORDER BY tested_at DESC LIMIT %s""",
+        (domain_id, limit),
+    )
+    return cur.fetchall()
+
+
+def log_ban_event(conn, environment_id, domain_id, reason, cooldown_seconds):
+    cur = conn.cursor()
+    cur.execute(
+        """INSERT INTO ban_events (environment_id, domain_id, trigger_reason, cooldown_until)
+           VALUES (%s,%s,%s, NOW() + INTERVAL %s SECOND)""",
+        (environment_id, domain_id, reason, cooldown_seconds),
+    )
+
+
 def sync_pull(conn, profile: str, min_pulls: int = 3, limit: int = 20):
     """Топ геномов профиля ПО ВСЕМ окружениям (включая другие ноды) --
     возвращается ноде-клиенту как кандидаты для локального затравливания

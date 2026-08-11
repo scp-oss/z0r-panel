@@ -30,6 +30,7 @@ from starlette.middleware.sessions import SessionMiddleware
 import auth
 import config
 import db
+import db_api
 import sync_api
 
 if not config.PANEL_SESSION_SECRET:
@@ -44,6 +45,7 @@ app.add_middleware(
 )
 app.add_exception_handler(auth.NotAuthenticated, auth.not_authenticated_handler)
 app.include_router(sync_api.router)
+app.include_router(db_api.router)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
@@ -60,8 +62,12 @@ def make_connect_string(**fields) -> str:
     """base64(JSON), одна непрозрачная строка вместо отдельных полей --
     как VLESS/Outline/WireGuard-ключи (по прямому запросу). z0r
     (z2r_autobench) декодирует её сам через decode_connect_string() --
-    формат {"m": "panel"|"db", ...} общий с
-    Zenith/db/create_remote_db_user.sh (режим "db"), см. его исходник."""
+    формат {"m": "panel", url, token, ...}. Один и тот же формат для
+    ноды с локальным буфером (hub-and-spoke, sync_api.py push/pull) и
+    для ноды без своей БД вообще (ZENITH_DB_MODE=api, db_api.py) -- обе
+    ходят сюда по HTTP+токену, разница только в частоте вызова, не в
+    транспорте. Сырой MySQL наружу больше не открывается ни для какой
+    ноды (см. Zenith db/schema.sql комментарий про environments)."""
     raw = json.dumps(fields, separators=(",", ":")).encode()
     return base64.urlsafe_b64encode(raw).decode().rstrip("=")
 
