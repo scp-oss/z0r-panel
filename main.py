@@ -16,6 +16,8 @@ orchestrator/main.py и promote.py уже посчитали -- финально
 
 Запуск: см. run.sh / README.md (systemd-юнит zenith-panel.service).
 """
+import base64
+import json
 import subprocess
 import sys
 
@@ -52,6 +54,16 @@ templates = Jinja2Templates(directory="templates")
 # каталог ради одного словаря лишняя связанность.
 PROFILE_NUMBERS = {"YT_TLS": 1, "GV_TLS": 2, "RKN_TLS": 3, "DS_TLS": 4, "VOICE_UDP": 6}
 PROFILE_PROTO = {"VOICE_UDP": "udp"}
+
+
+def make_connect_string(**fields) -> str:
+    """base64(JSON), одна непрозрачная строка вместо отдельных полей --
+    как VLESS/Outline/WireGuard-ключи (по прямому запросу). z0r
+    (z2r_autobench) декодирует её сам через decode_connect_string() --
+    формат {"m": "panel"|"db", ...} общий с
+    Zenith/db/create_remote_db_user.sh (режим "db"), см. его исходник."""
+    raw = json.dumps(fields, separators=(",", ":")).encode()
+    return base64.urlsafe_b64encode(raw).decode().rstrip("=")
 
 
 def _run_cli(*args) -> str | None:
@@ -110,7 +122,7 @@ def nodes_page(request: Request, user: str = Depends(auth.require_login)):
         conn.close()
     return templates.TemplateResponse(
         request, "nodes.html",
-        {"user": user, "environments": environments, "new_token": None, "new_token_uuid": None},
+        {"user": user, "environments": environments, "new_token": None, "new_token_uuid": None, "connect_string": None},
     )
 
 
@@ -127,11 +139,15 @@ def create_node(request: Request, user: str = Depends(auth.require_login)):
         environments = db.list_environments(conn)
     finally:
         conn.close()
+    connect_string = (
+        make_connect_string(m="panel", url=config.PANEL_PUBLIC_URL, token=token)
+        if config.PANEL_PUBLIC_URL else None
+    )
     return templates.TemplateResponse(
         request, "nodes.html",
         {
             "user": user, "environments": environments, "new_token": token, "new_token_uuid": node_uuid,
-            "panel_public_url": config.PANEL_PUBLIC_URL,
+            "panel_public_url": config.PANEL_PUBLIC_URL, "connect_string": connect_string,
         },
     )
 

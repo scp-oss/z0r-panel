@@ -16,13 +16,16 @@
 {% if new_token %}
 <div class="card">
   <h3>Новая нода — показывается один раз</h3>
-  {% if panel_public_url %}
+  {% if connect_string %}
   <p class="muted">
-    Готовый блок — вставь ЦЕЛИКОМ в <code>z0r</code> (пункт 22, режим БД "2"),
-    когда попросит вставить <code>PANEL_URL</code>/<code>PANEL_NODE_TOKEN</code>
-    (по мотивам того, как Remnawave выдаёт готовый docker-compose.yml вместо
-    ручного ввода host/port/token по отдельности):
+    Строка-конфиг — одна непрозрачная строка (base64+JSON: адрес панели +
+    токен), вставь ЦЕЛИКОМ в <code>z0r</code> (пункт 22, режим БД "2",
+    первый вопрос "Строка-конфиг") — по мотивам того, как устроены
+    VLESS/Outline/WireGuard-ключи, вместо ручного набора
+    <code>PANEL_URL</code>/<code>PANEL_NODE_TOKEN</code> по отдельности:
   </p>
+  <pre class="token-box" style="white-space:pre-wrap;word-break:break-all;">{{ connect_string }}</pre>
+  <p class="muted">Не подошло — тот же результат по отдельности:</p>
   <pre class="token-box">PANEL_URL={{ panel_public_url }}
 PANEL_NODE_TOKEN={{ new_token }}</pre>
   {% else %}
