@@ -13,6 +13,8 @@
   <code>orchestrator/sync_client.py</code>/<code>bootstrap.py</code> — см. README.
 </p>
 
+{% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+
 {% if new_token %}
 <div class="card">
   <h3>Новая нода — показывается один раз</h3>
@@ -51,22 +53,35 @@ PANEL_NODE_TOKEN={{ new_token }}</pre>
 </div>
 
 <table>
-  <tr><th>Провайдер</th><th>UUID</th><th>Имя</th><th>Тип</th><th>Геномов</th><th>Прогонов всего</th><th>Последний sync</th><th>Создана</th></tr>
+  <tr><th>Провайдер</th><th>UUID</th><th>Имя</th><th>Тип</th><th>Геномов</th><th>Прогонов всего</th><th>Последний sync</th><th>Создана</th><th>Действия</th></tr>
   {% for e in environments %}
-  <tr>
+  <tr{% if not e.active %} style="opacity:0.5;"{% endif %}>
     <td>{% if e.provider %}{{ e.provider }}{% else %}<span class="pill warn">ещё не откликалась</span>{% endif %}</td>
     <td><code class="mono">{{ e.node_uuid[:8] if e.node_uuid else '—' }}</code></td>
     <td>{{ e.name }}</td>
     <td>
       {% if e.is_production %}<span class="pill prod">prod, локальная</span>
       {% elif e.is_remote_node %}<span class="pill remote">удалённая, HTTP-sync</span>
-      {% elif e.node_uuid %}<span class="pill remote">удалённая, прямая БД</span>
       {% else %}<span class="pill">локальная</span>{% endif %}
+      {% if not e.active %}<span class="pill warn">деактивирована</span>{% endif %}
     </td>
     <td>{{ e.genome_count }}</td>
     <td>{{ e.total_pulls }}</td>
     <td>{{ e.last_sync_at or '—' }}</td>
     <td>{{ e.created_at }}</td>
+    <td>
+      {% if not e.is_production %}
+      <form method="post" action="/nodes/{{ e.id }}/toggle-active" class="inline">
+        <button type="submit">{{ 'активировать' if not e.active else 'деактивировать' }}</button>
+      </form>
+      {% if e.genome_count == 0 %}
+      <form method="post" action="/nodes/{{ e.id }}/delete" class="inline"
+            onsubmit="return confirm('Удалить ноду {{ e.name }} ({{ e.node_uuid[:8] if e.node_uuid else e.id }})? Токен перестанет работать, действие необратимо.');">
+        <button type="submit">удалить</button>
+      </form>
+      {% endif %}
+      {% endif %}
+    </td>
   </tr>
   {% endfor %}
 </table>

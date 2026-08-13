@@ -158,6 +158,45 @@ def create_node(request: Request, user: str = Depends(auth.require_login)):
     )
 
 
+@app.post("/nodes/{environment_id}/delete")
+def delete_node(request: Request, environment_id: int, user: str = Depends(auth.require_login)):
+    """Только для нод БЕЗ истории (db.delete_environment сам это
+    перепроверяет, шаблон только прячет кнопку -- не единственная защита).
+    Типичный случай -- 'pending-<uuid8>', токен выписали, но нода так и
+    не подключилась (или тестовый прогон, который решили не продолжать)."""
+    conn = db.connect()
+    try:
+        if db.get_environment_genome_count(conn, environment_id) > 0:
+            environments = db.list_environments(conn)
+            return templates.TemplateResponse(
+                request, "nodes.html",
+                {
+                    "user": user, "environments": environments, "new_token": None,
+                    "new_token_uuid": None, "connect_string": None,
+                    "error": "У ноды есть история (genome_scores) -- удалить нельзя, только деактивировать.",
+                },
+                status_code=409,
+            )
+        db.delete_environment(conn, environment_id)
+    finally:
+        conn.close()
+    return RedirectResponse(url="/nodes", status_code=303)
+
+
+@app.post("/nodes/{environment_id}/toggle-active")
+def toggle_node_active(request: Request, environment_id: int, user: str = Depends(auth.require_login)):
+    conn = db.connect()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT active FROM environments WHERE id=%s", (environment_id,))
+        row = cur.fetchone()
+        if row:
+            db.set_environment_active(conn, environment_id, not row[0])
+    finally:
+        conn.close()
+    return RedirectResponse(url="/nodes", status_code=303)
+
+
 @app.get("/genome/{genome_id}")
 def genome_detail(request: Request, genome_id: str, user: str = Depends(auth.require_login)):
     conn = db.connect()

@@ -113,6 +113,32 @@ def list_environments(conn):
     return cur.fetchall()
 
 
+def get_environment_genome_count(conn, environment_id: int) -> int:
+    """Гейт для delete_environment -- ноду с реальной историей (хоть один
+    genome_scores) удалять нельзя, только деактивировать (см. main.py
+    delete_node -- клиентская проверка в шаблоне дублируется здесь на
+    сервере, не доверяем только форме)."""
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) FROM genome_scores WHERE environment_id=%s", (environment_id,))
+    return cur.fetchone()[0]
+
+
+def delete_environment(conn, environment_id: int) -> bool:
+    """Жёсткое удаление -- только для нод БЕЗ истории (см.
+    get_environment_genome_count) -- типично те самые 'pending-<uuid8>',
+    которым выписали токен, но так и не подключили (или подключили не
+    туда, повторный тест и т.п.). Локальную (is_production) не даёт
+    удалить -- у неё нет токена, но по ошибке кликнуть ID можно."""
+    cur = conn.cursor()
+    cur.execute("DELETE FROM environments WHERE id=%s AND is_production=FALSE", (environment_id,))
+    return cur.rowcount > 0
+
+
+def set_environment_active(conn, environment_id: int, active: bool):
+    cur = conn.cursor()
+    cur.execute("UPDATE environments SET active=%s WHERE id=%s AND is_production=FALSE", (active, environment_id))
+
+
 def get_or_create_local_environment(conn) -> int:
     cur = conn.cursor()
     cur.execute("SELECT id FROM environments WHERE name=%s", (config.LOCAL_ENVIRONMENT_NAME,))
