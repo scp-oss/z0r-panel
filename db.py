@@ -52,6 +52,24 @@ def create_node(conn) -> tuple:
     return token, node_uuid
 
 
+def reissue_node_token(conn, environment_id: int) -> str:
+    """Новый токен для УЖЕ существующей записи (в отличие от create_node --
+    та заводит новую строку) -- для нод, которые ещё не откликнулись (или
+    откликались, но токен утерян/не сохранён при создании). Старый токен
+    сразу перестаёт действовать (перезаписывается хэш), имя/провайдер/
+    история (если уже есть) не трогаются. Возвращает новый токен в
+    открытом виде -- как и create_node, показывается вызывающим кодом
+    ОДИН раз, в БД остаётся только хэш."""
+    token = secrets.token_urlsafe(32)
+    token_hash = hash_token(token)
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE environments SET api_token_hash=%s WHERE id=%s AND is_production=FALSE",
+        (token_hash, environment_id),
+    )
+    return token
+
+
 def self_report_node(conn, environment_id: int, name: str, provider: str) -> bool:
     """Нода сообщает своё реальное имя/провайдера при push (см.
     sync_api.py::push) -- перезаписывает placeholder ('pending-<uuid8>')
@@ -130,6 +148,22 @@ def delete_environment(conn, environment_id: int) -> bool:
     туда, повторный тест и т.п.). Локальную (is_production) не даёт
     удалить -- у неё нет токена, но по ошибке кликнуть ID можно."""
     cur = conn.cursor()
+    cur.execute("DELETE FROM environments WHERE id=%s AND is_production=FALSE", (environment_id,))
+    return cur.rowcount > 0
+
+
+def force_delete_environment(conn, environment_id: int) -> bool:
+    """Удаление ЛЮБОЙ ноды, вместе с её историей -- по прямому запросу
+    (delete_environment выше отказывает, если genome_count > 0). Чистим
+    genome_scores/experiments/operator_stats/ban_events за этим
+    environment_id явно, а не полагаемся на FOREIGN KEY CASCADE -- schema.sql
+    объявляет REFERENCES только как аннотацию в определении колонки, не
+    полноценным table-level constraint, так что рассчитывать на автоудаление
+    зависимых строк нельзя. Сами genomes НЕ трогаем -- геном не принадлежит
+    одной ноде (мог прийти через sync_import с другой), делить нечего."""
+    cur = conn.cursor()
+    for table in ("genome_scores", "experiments", "operator_stats", "ban_events"):
+        cur.execute(f"DELETE FROM {table} WHERE environment_id=%s", (environment_id,))
     cur.execute("DELETE FROM environments WHERE id=%s AND is_production=FALSE", (environment_id,))
     return cur.rowcount > 0
 

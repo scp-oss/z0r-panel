@@ -183,6 +183,47 @@ def delete_node(request: Request, environment_id: int, user: str = Depends(auth.
     return RedirectResponse(url="/nodes", status_code=303)
 
 
+@app.post("/nodes/{environment_id}/force-delete")
+def force_delete_node(environment_id: int, user: str = Depends(auth.require_login)):
+    """Удаление ЛЮБОЙ ноды по прямому запросу, вместе с историей --
+    в отличие от delete_node выше, тут genome_count НЕ проверяется.
+    Шаблон требует более серьёзное подтверждение (ввод имени ноды), чем
+    у обычного удаления, но сама защита -- на уровне UI/confirm, не
+    сервера (сервер тут доверяет человеческой сессии полностью, как и
+    остальные /nodes-роуты)."""
+    conn = db.connect()
+    try:
+        db.force_delete_environment(conn, environment_id)
+    finally:
+        conn.close()
+    return RedirectResponse(url="/nodes", status_code=303)
+
+
+@app.post("/nodes/{environment_id}/reissue-token")
+def reissue_node_token(request: Request, environment_id: int, user: str = Depends(auth.require_login)):
+    """Новый токен для уже существующей (обычно ещё не откликнувшейся)
+    ноды -- показывается один раз, тем же блоком, что и при создании
+    (см. create_node выше). Старый токен сразу перестаёт работать."""
+    conn = db.connect()
+    try:
+        token = db.reissue_node_token(conn, environment_id)
+        environments = db.list_environments(conn)
+    finally:
+        conn.close()
+    node_uuid = next((e["node_uuid"] for e in environments if e["id"] == environment_id), None)
+    connect_string = (
+        make_connect_string(m="panel", url=config.PANEL_PUBLIC_URL, token=token)
+        if config.PANEL_PUBLIC_URL else None
+    )
+    return templates.TemplateResponse(
+        request, "nodes.html",
+        {
+            "user": user, "environments": environments, "new_token": token, "new_token_uuid": node_uuid,
+            "panel_public_url": config.PANEL_PUBLIC_URL, "connect_string": connect_string,
+        },
+    )
+
+
 @app.post("/nodes/{environment_id}/toggle-active")
 def toggle_node_active(request: Request, environment_id: int, user: str = Depends(auth.require_login)):
     conn = db.connect()

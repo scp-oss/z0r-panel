@@ -86,10 +86,20 @@ PANEL_NODE_TOKEN={{ new_token }}</pre>
       <form method="post" action="/nodes/{{ e.id }}/toggle-active" class="inline">
         <button type="submit">{{ 'активировать' if not e.active else 'деактивировать' }}</button>
       </form>
+      {% if not e.provider %}
+      <form method="post" action="/nodes/{{ e.id }}/reissue-token" class="inline">
+        <button type="submit">перевыпустить токен</button>
+      </form>
+      {% endif %}
       {% if e.genome_count == 0 %}
       <form method="post" action="/nodes/{{ e.id }}/delete" class="inline"
-            onsubmit="return confirm('Удалить ноду {{ e.name }} ({{ e.node_uuid[:8] if e.node_uuid else e.id }})? Токен перестанет работать, действие необратимо.');">
+            onsubmit="return confirm('Удалить ноду ' + {{ e.name | tojson }} + ' (' + {{ (e.node_uuid[:8] if e.node_uuid else e.id) | tojson }} + ')? Токен перестанет работать, действие необратимо.');">
         <button type="submit">удалить</button>
+      </form>
+      {% else %}
+      <form method="post" action="/nodes/{{ e.id }}/force-delete" class="inline"
+            onsubmit="return prompt('У ноды есть история ({{ e.genome_count }} геном(ов), {{ e.total_pulls }} прогон(ов)) -- она будет удалена НАВСЕГДА вместе с нодой. Введи имя ноды для подтверждения: ' + {{ e.name | tojson }}) === {{ e.name | tojson }};">
+        <button type="submit">удалить со всей историей</button>
       </form>
       {% endif %}
       {% endif %}
