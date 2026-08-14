@@ -39,6 +39,23 @@ def domains(profile: str, node: dict = Depends(auth.require_node)):
     return {"domains": rows}
 
 
+class DomainIn(BaseModel):
+    host: str
+    path: str = "/"
+    profile: str
+    min_bytes: int = 65536
+
+
+@router.post("/domain")
+def get_or_create_domain(body: DomainIn, node: dict = Depends(auth.require_node)):
+    conn = db.connect()
+    try:
+        domain = db.get_or_create_domain(conn, body.host, body.path, body.profile, body.min_bytes)
+    finally:
+        conn.close()
+    return domain
+
+
 class GenomeIn(BaseModel):
     id: str
     profile: str

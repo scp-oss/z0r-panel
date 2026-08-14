@@ -440,6 +440,20 @@ def get_domains_for_profile(conn, profile: str):
     return cur.fetchall()
 
 
+def get_or_create_domain(conn, host: str, path: str, profile: str, min_bytes: int) -> dict:
+    """Для main.py --domain на api-режимных нодах -- см.
+    orchestrator/db_local.py::get_or_create_domain (тот же запрос)."""
+    cur = conn.cursor()
+    cur.execute(
+        """INSERT INTO domain_pool (host, path, profile_hint, min_bytes)
+           VALUES (%s,%s,%s,%s)
+           ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)""",
+        (host, path, profile, min_bytes),
+    )
+    domain_id = cur.lastrowid
+    return {"id": domain_id, "host": host, "path": path, "min_bytes": min_bytes}
+
+
 def insert_genome(conn, g: dict) -> str:
     cur = conn.cursor()
     cur.execute(
