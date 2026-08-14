@@ -196,7 +196,7 @@ def overview_rows(conn):
         """SELECT g.profile, e.id AS environment_id, e.name AS environment_name,
                   e.provider, e.is_production,
                   g.id AS genome_id, g.rendered_args, g.source, g.family,
-                  gs.pulls, gs.successes, gs.total_reward,
+                  gs.pulls, gs.successes, gs.total_reward, gs.promoted_strategy,
                   ROUND(gs.total_reward / NULLIF(gs.pulls, 0), 3) AS avg_score
            FROM genome_scores gs
            JOIN genomes g ON g.id = gs.genome_id
@@ -248,8 +248,10 @@ def get_genome(conn, genome_id: str):
 def genome_scores_by_env(conn, genome_id: str):
     cur = conn.cursor(dictionary=True)
     cur.execute(
-        """SELECT e.name AS environment_name, e.provider, gs.pulls, gs.successes,
-                  ROUND(gs.total_reward / NULLIF(gs.pulls, 0), 3) AS avg_score, gs.is_production
+        """SELECT e.id AS environment_id, e.name AS environment_name, e.provider,
+                  gs.pulls, gs.successes,
+                  ROUND(gs.total_reward / NULLIF(gs.pulls, 0), 3) AS avg_score,
+                  gs.is_production, gs.promoted_strategy
            FROM genome_scores gs
            JOIN environments e ON e.id = gs.environment_id
            WHERE gs.genome_id = %s
@@ -257,6 +259,23 @@ def genome_scores_by_env(conn, genome_id: str):
         (genome_id,),
     )
     return cur.fetchall()
+
+
+def set_promoted_strategy(conn, genome_id: str, environment_id: int, strategy: int | None) -> bool:
+    """Человек руками отмечает в панели, каким номером strategy=N этот
+    геном сейчас живёт в /opt/zapret2/config этого окружения (сам
+    promote.py это не пишет -- см. db/migrations/003_promoted_strategy.sql
+    в Zenith). strategy=None -- снять отметку (геном больше не считается
+    продвинутым тут, напр. если его заменили другим). Обновляет только
+    существующую строку genome_scores -- если для этого genome+environment
+    ещё не было ни одного прогона, отмечать промоушен нечего (панель сама
+    ничего не запускает, см. её README "Границы ответственности")."""
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE genome_scores SET promoted_strategy=%s WHERE genome_id=%s AND environment_id=%s",
+        (strategy, genome_id, environment_id),
+    )
+    return cur.rowcount > 0
 
 
 def genome_ancestors(conn, genome_id: str, max_depth: int = 20):

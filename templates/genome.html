@@ -18,7 +18,7 @@
 <div class="card">
   <h3>Результаты по нодам</h3>
   <table>
-    <tr><th>Нода</th><th>Провайдер</th><th>Прогонов</th><th>Успехов</th><th>avg_score</th><th>Боевой сейчас</th></tr>
+    <tr><th>Нода</th><th>Провайдер</th><th>Прогонов</th><th>Успехов</th><th>avg_score</th><th>Боевой сейчас</th><th>Продвинуто как strategy=</th></tr>
     {% for s in scores %}
     <tr>
       <td>{{ s.environment_name }}</td>
@@ -27,6 +27,14 @@
       <td>{{ s.successes }}</td>
       <td>{{ s.avg_score }}</td>
       <td>{% if s.is_production %}<span class="pill ok">да</span>{% else %}—{% endif %}</td>
+      <td>
+        <form class="inline" method="post" action="/genome/{{ genome.id }}/promote-strategy">
+          <input type="hidden" name="environment_id" value="{{ s.environment_id }}">
+          <input type="number" name="strategy" value="{{ s.promoted_strategy if s.promoted_strategy is not none else '' }}"
+                 placeholder="—" style="width:70px">
+          <button type="submit">сохранить</button>
+        </form>
+      </td>
     </tr>
     {% endfor %}
   </table>

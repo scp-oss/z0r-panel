@@ -257,6 +257,30 @@ def genome_detail(request: Request, genome_id: str, user: str = Depends(auth.req
     )
 
 
+@app.post("/genome/{genome_id}/promote-strategy")
+def genome_promote_strategy(
+    genome_id: str, user: str = Depends(auth.require_login),
+    environment_id: int = Form(...), strategy: str = Form(""),
+):
+    """Ручная отметка -- панель ничего сама не продвигает (см. README
+    "Границы ответственности панели"), это просто запись факта: человек
+    уже сделал promote.py + вставил блок в /opt/zapret2/config + перезапустил
+    zapret2 руками, и теперь говорит панели, каким номером strategy=N это
+    легло, чтобы /genome/<id> и /overview показывали это, а не только
+    голый rendered_args. Пустое поле -- снять отметку."""
+    strategy = strategy.strip()
+    try:
+        strategy_n = int(strategy) if strategy else None
+    except ValueError:
+        strategy_n = None
+    conn = db.connect()
+    try:
+        db.set_promoted_strategy(conn, genome_id, environment_id, strategy_n)
+    finally:
+        conn.close()
+    return RedirectResponse(url=f"/genome/{genome_id}", status_code=303)
+
+
 @app.get("/knowledge")
 def knowledge_page(request: Request, user: str = Depends(auth.require_login)):
     conn = db.connect()

@@ -13,7 +13,10 @@
     <tr>
       <td>{{ r.environment_name }} {% if r.is_production %}<span class="pill prod">prod</span>{% endif %}</td>
       <td>{{ r.provider }}</td>
-      <td><a class="gid mono" href="/genome/{{ r.genome_id }}">{{ r.rendered_args[:70] }}{% if r.rendered_args|length > 70 %}…{% endif %}</a></td>
+      <td>
+        <a class="gid mono" href="/genome/{{ r.genome_id }}">{{ r.rendered_args[:70] }}{% if r.rendered_args|length > 70 %}…{% endif %}</a>
+        {% if r.promoted_strategy is not none %}<span class="pill prod">strategy={{ r.promoted_strategy }}</span>{% endif %}
+      </td>
       <td><span class="pill">{{ r.source }}</span></td>
       <td>{{ r.pulls }}</td>
       <td>{{ r.successes }}</td>
