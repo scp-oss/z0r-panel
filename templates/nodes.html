@@ -26,17 +26,29 @@
     VLESS/Outline/WireGuard-ключи, вместо ручного набора
     <code>PANEL_URL</code>/<code>PANEL_NODE_TOKEN</code> по отдельности:
   </p>
-  <pre class="token-box" style="white-space:pre-wrap;word-break:break-all;">{{ connect_string }}</pre>
+  <pre class="token-box" id="connect-string" style="white-space:pre-wrap;word-break:break-all;">{{ connect_string }}</pre>
+  <button type="button" onclick="copyToClipboard('connect-string', this)">Скопировать строку-конфиг</button>
   <p class="muted">Не подошло — тот же результат по отдельности:</p>
   <pre class="token-box">PANEL_URL={{ panel_public_url }}
 PANEL_NODE_TOKEN={{ new_token }}</pre>
   {% else %}
-  <div class="token-box">{{ new_token }}</div>
+  <div class="token-box" id="connect-string">{{ new_token }}</div>
+  <button type="button" onclick="copyToClipboard('connect-string', this)">Скопировать токен</button>
   <p class="muted">
     (<code>PANEL_PUBLIC_URL</code> не задан в <code>.env</code> панели — показан
     только токен, <code>PANEL_URL</code> впиши на ноде сам.)
   </p>
   {% endif %}
+  <script>
+    function copyToClipboard(elId, btn) {
+      var text = document.getElementById(elId).textContent;
+      navigator.clipboard.writeText(text).then(function () {
+        var old = btn.textContent;
+        btn.textContent = "Скопировано";
+        setTimeout(function () { btn.textContent = old; }, 1500);
+      });
+    }
+  </script>
   <p class="muted">
     Скопируй сейчас. В БД хранится только хэш токена — повторно посмотреть нельзя,
     только перевыпустить новый. UUID этой ноды: <code class="mono">{{ new_token_uuid }}</code>

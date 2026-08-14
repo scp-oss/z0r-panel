@@ -77,6 +77,13 @@ def require_node(request: Request) -> dict:
                     status_code=409,
                     detail=f"Имя '{node_name}' уже занято другой нодой -- смени ZENITH_ENVIRONMENT_NAME в .env",
                 )
+        # last_sync_at раньше обновлялся только внутри sync_push -- ноды в
+        # ZENITH_DB_MODE=api никогда не зовут push (у них нет локального
+        # снапшота, который пушить), поэтому у них колонка молча оставалась
+        # пустой навсегда, хотя нода реально активна на каждый раунд.
+        # require_node -- общая точка для ВСЕХ authenticated-запросов
+        # (push/pull/bootstrap И db_api.py), обновляем тут одним местом.
+        db.touch_node_sync(conn, env["id"])
     finally:
         conn.close()
     return env
