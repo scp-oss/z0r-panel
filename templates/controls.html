@@ -23,6 +23,52 @@
   {% endfor %}
 </table>
 
+<div class="card">
+  <h3>Запустить подбор на локальной ноде ({{ local_env_name }})</h3>
+  <p class="muted">
+    Запускает <code>main.py</code> тем же способом, что и руками из
+    терминала — здесь только кнопка вместо SSH. Один прогон одновременно.
+  </p>
+  {% if run_error %}<div class="flash error">{{ run_error }}</div>{% endif %}
+  <form method="post" action="/controls/run">
+    <select name="profile">
+      {% for p in run_profiles %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
+    </select>
+    <input type="number" name="rounds" value="20" min="1" max="500" style="width:80px">
+    <input type="text" name="domain" placeholder="кастомный домен (host[/path]), необязательно" style="width:280px">
+    <button type="submit">запустить</button>
+  </form>
+  <p id="run-status" class="muted" style="margin-top:12px">—</p>
+  <pre id="run-log" class="mono" style="max-height:400px; overflow:auto; background:#0f1115; border:1px solid #2a2e37; border-radius:6px; padding:10px; white-space:pre-wrap; display:none"></pre>
+</div>
+<script>
+(function () {
+  var statusEl = document.getElementById("run-status");
+  var logEl = document.getElementById("run-log");
+  function poll() {
+    fetch("/controls/run/status").then(function (r) { return r.json(); }).then(function (s) {
+      if (!s.profile) { statusEl.textContent = "—"; return; }
+      var label = s.profile + (s.domain ? " (" + s.domain + ")" : "") + ", " + s.rounds + " раундов";
+      if (s.running) {
+        statusEl.textContent = "идёт: " + label + " (с " + s.started_at + ")";
+      } else if (s.exit_code !== null) {
+        statusEl.textContent = "завершено: " + label + " (код " + s.exit_code + ", " + s.finished_at + ")";
+      } else {
+        statusEl.textContent = label;
+      }
+      if (s.log_tail) {
+        logEl.style.display = "block";
+        var atBottom = logEl.scrollTop + logEl.clientHeight >= logEl.scrollHeight - 20;
+        logEl.textContent = s.log_tail;
+        if (atBottom) logEl.scrollTop = logEl.scrollHeight;
+      }
+    }).catch(function () {});
+  }
+  poll();
+  setInterval(poll, 3000);
+})();
+</script>
+
 {% for profile, rows in by_profile.items() %}
 <div class="card">
   <h3>{{ profile }} — лучшие геномы локально ({{ local_env_name }})</h3>

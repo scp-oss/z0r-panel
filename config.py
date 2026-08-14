@@ -94,3 +94,11 @@ LOCAL_ENVIRONMENT_PROVIDER = _get("ZENITH_ENVIRONMENT_PROVIDER", "domru")
 # autobench, не два.
 Z2R_AUTOBENCH_DIR = _get("Z2R_AUTOBENCH_DIR", os.path.dirname(PANEL_DIR))
 SET_STRATEGY_CLI = os.path.join(Z2R_AUTOBENCH_DIR, "set_strategy_cli.sh")
+
+# Zenith orchestrator -- сосед по INSTALL_DIR (см. z2r_autobench/z0r::
+# ZENITH_DIR="$INSTALL_DIR/Zenith"). Нужен runner.py -- кнопке "запустить
+# подбор" в /controls, чтобы дёрнуть тот же main.py тем же venv, что при
+# ручном запуске из терминала (см. README Zenith "sudo venv/bin/python3
+# main.py --profile ...").
+ZENITH_ORCHESTRATOR_DIR = _get("ZENITH_ORCHESTRATOR_DIR", os.path.join(Z2R_AUTOBENCH_DIR, "Zenith", "orchestrator"))
+ZENITH_VENV_PYTHON = _get("ZENITH_VENV_PYTHON", os.path.join(ZENITH_ORCHESTRATOR_DIR, "venv", "bin", "python3"))

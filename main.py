@@ -31,6 +31,7 @@ import auth
 import config
 import db
 import db_api
+import runner
 import sync_api
 
 if not config.PANEL_SESSION_SECRET:
@@ -266,8 +267,7 @@ def knowledge_page(request: Request, user: str = Depends(auth.require_login)):
     return templates.TemplateResponse(request, "knowledge.html", {"user": user, "rollup": rollup})
 
 
-@app.get("/controls")
-def controls_page(request: Request, user: str = Depends(auth.require_login)):
+def _controls_context(user: str, run_error: str | None = None) -> dict:
     conn = db.connect()
     try:
         local_env_id = db.get_or_create_local_environment(conn)
@@ -288,13 +288,34 @@ def controls_page(request: Request, user: str = Depends(auth.require_login)):
             "locked": locked, "max": max_strat,
         })
 
-    return templates.TemplateResponse(
-        request, "controls.html",
-        {
-            "user": user, "profile_status": profile_status, "by_profile": by_profile,
-            "local_env_name": config.LOCAL_ENVIRONMENT_NAME,
-        },
-    )
+    return {
+        "user": user, "profile_status": profile_status, "by_profile": by_profile,
+        "local_env_name": config.LOCAL_ENVIRONMENT_NAME,
+        "run_profiles": list(PROFILE_NUMBERS.keys()),
+        "run_error": run_error,
+    }
+
+
+@app.get("/controls")
+def controls_page(request: Request, user: str = Depends(auth.require_login)):
+    return templates.TemplateResponse(request, "controls.html", _controls_context(user))
+
+
+@app.post("/controls/run")
+def controls_run(
+    request: Request, user: str = Depends(auth.require_login),
+    profile: str = Form(...), rounds: int = Form(20), domain: str = Form(""),
+):
+    if profile not in PROFILE_NUMBERS:
+        error = "Неизвестный профиль."
+    else:
+        error = runner.start(profile, max(1, min(rounds, 500)), domain.strip() or None)
+    return templates.TemplateResponse(request, "controls.html", _controls_context(user, run_error=error))
+
+
+@app.get("/controls/run/status")
+def controls_run_status(user: str = Depends(auth.require_login)):
+    return runner.status()
 
 
 if __name__ == "__main__":
