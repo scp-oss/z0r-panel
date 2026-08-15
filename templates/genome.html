@@ -22,7 +22,7 @@
     {% for s in scores %}
     <tr>
       <td>{{ s.environment_name }}</td>
-      <td>{{ s.provider }}</td>
+      <td><span class="blur">{{ s.provider }}</span></td>
       <td>{{ s.pulls }}</td>
       <td>{{ s.successes }}</td>
       <td>{{ s.avg_score }}</td>

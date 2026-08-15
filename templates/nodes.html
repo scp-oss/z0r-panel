@@ -68,7 +68,7 @@ PANEL_NODE_TOKEN={{ new_token }}</pre>
   <tr><th>Провайдер</th><th>UUID</th><th>Имя</th><th>Тип</th><th>Геномов</th><th>Прогонов всего</th><th>Последний sync</th><th>Создана</th><th>Действия</th></tr>
   {% for e in environments %}
   <tr{% if not e.active %} style="opacity:0.5;"{% endif %}>
-    <td>{% if e.provider %}{{ e.provider }}{% else %}<span class="pill warn">ещё не откликалась</span>{% endif %}</td>
+    <td>{% if e.provider %}<span class="blur">{{ e.provider }}</span>{% else %}<span class="pill warn">ещё не откликалась</span>{% endif %}</td>
     <td><code class="mono">{{ e.node_uuid[:8] if e.node_uuid else '—' }}</code></td>
     <td>{{ e.name }}</td>
     <td>

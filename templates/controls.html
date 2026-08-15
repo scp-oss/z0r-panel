@@ -17,8 +17,8 @@
     <td>{{ row.profile }}</td>
     <td>{{ row.num }}</td>
     <td>{{ row.proto }}</td>
-    <td>{% if row.locked is not none %}{{ row.locked }}{% else %}<span class="pill warn">ошибка чтения</span>{% endif %}</td>
-    <td>{% if row.max is not none %}{{ row.max }}{% else %}<span class="pill warn">ошибка чтения</span>{% endif %}</td>
+    <td>{% if row.locked is not none %}<span class="blur">{{ row.locked }}</span>{% else %}<span class="pill warn">ошибка чтения</span>{% endif %}</td>
+    <td>{% if row.max is not none %}<span class="blur">{{ row.max }}</span>{% else %}<span class="pill warn">ошибка чтения</span>{% endif %}</td>
   </tr>
   {% endfor %}
 </table>

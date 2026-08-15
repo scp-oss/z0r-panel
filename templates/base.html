@@ -53,6 +53,14 @@
   }
   .flash { padding: 8px 14px; border-radius: 6px; margin-bottom: 16px; background: #2a2e37; }
   .flash.error { background: #3a2620; color: #e08a5f; }
+  /* Провайдеры/номера боевых strategy= -- размыты по умолчанию (скриншот
+     панели не должен светить, у кого какой провайдер и какая стратегия
+     сейчас залочена), клик по конкретной ячейке снимает блюр только с
+     неё. См. base.html script ниже -- один делегированный обработчик на
+     весь документ, каждая страница просто помечает нужные элементы
+     классом "blur", ничего больше подключать не нужно. */
+  .blur { filter: blur(5px); cursor: pointer; transition: filter .12s ease; }
+  .blur.revealed { filter: none; }
 </style>
 </head>
 <body>
@@ -67,5 +75,11 @@
 <main>
 {% block content %}{% endblock %}
 </main>
+<script>
+  document.addEventListener("click", function (e) {
+    var el = e.target.closest(".blur");
+    if (el) el.classList.toggle("revealed");
+  });
+</script>
 </body>
 </html>
