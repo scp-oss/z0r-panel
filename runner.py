@@ -54,7 +54,10 @@ def start(profile: str, rounds: int, domain: str | None) -> str | None:
         if _is_running_locked():
             return "Прогон уже идёт — дождись завершения текущего."
 
-        os.makedirs(LOG_DIR, exist_ok=True)
+        try:
+            os.makedirs(LOG_DIR, exist_ok=True)
+        except OSError as e:
+            return f"Не удалось создать {LOG_DIR}: {e}"
         ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         log_path = os.path.join(LOG_DIR, f"{ts}-{profile}.log")
 
