@@ -17,8 +17,8 @@
     <td>{{ row.profile }}</td>
     <td>{{ row.num }}</td>
     <td>{{ row.proto }}</td>
-    <td>{% if row.locked is not none %}<span class="blur">{{ row.locked }}</span>{% else %}<span class="pill warn">ошибка чтения</span>{% endif %}</td>
-    <td>{% if row.max is not none %}<span class="blur">{{ row.max }}</span>{% else %}<span class="pill warn">ошибка чтения</span>{% endif %}</td>
+    <td>{% if row.locked is not none %}{{ row.locked }}{% else %}<span class="pill warn">ошибка чтения</span>{% endif %}</td>
+    <td>{% if row.max is not none %}{{ row.max }}{% else %}<span class="pill warn">ошибка чтения</span>{% endif %}</td>
   </tr>
   {% endfor %}
 </table>
@@ -39,28 +39,51 @@
     <button type="submit">запустить</button>
   </form>
   <p id="run-status" class="muted" style="margin-top:12px">—</p>
-  <pre id="run-log" class="mono" style="max-height:400px; overflow:auto; background:#0f1115; border:1px solid #2a2e37; border-radius:6px; padding:10px; white-space:pre-wrap; display:none"></pre>
+  <div id="run-successes"></div>
+  <pre id="run-error" class="mono" style="max-height:300px; overflow:auto; background:#0f1115; border:1px solid #2a2e37; border-radius:6px; padding:10px; white-space:pre-wrap; display:none"></pre>
 </div>
 <script>
 (function () {
   var statusEl = document.getElementById("run-status");
-  var logEl = document.getElementById("run-log");
+  var successesEl = document.getElementById("run-successes");
+  var errorEl = document.getElementById("run-error");
+
+  function esc(s) {
+    var d = document.createElement("div");
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  function renderSuccesses(list) {
+    if (!list.length) { successesEl.innerHTML = ""; return; }
+    var rows = list.map(function (r) {
+      return "<tr><td>" + r.bytes.toLocaleString("ru-RU") + " bytes</td><td>" + r.latency_ms + "ms</td>" +
+             "<td>[" + r.round + "/" + r.rounds + "]</td><td>" + esc(r.op) + "</td>" +
+             "<td class=\"mono\">" + esc(r.args) + "</td><td>" + esc(r.domain) + "</td></tr>";
+    }).join("");
+    successesEl.innerHTML =
+      "<table><tr><th>Байт</th><th>Задержка</th><th>Раунд</th><th>Оператор</th><th>Геном</th><th>Домен</th></tr>" +
+      rows + "</table>";
+  }
+
   function poll() {
     fetch("/controls/run/status").then(function (r) { return r.json(); }).then(function (s) {
-      if (!s.profile) { statusEl.textContent = "—"; return; }
+      if (!s.profile) { statusEl.textContent = "—"; successesEl.innerHTML = ""; errorEl.style.display = "none"; return; }
       var label = s.profile + (s.domain ? " (" + s.domain + ")" : "") + ", " + s.rounds + " раундов";
+      var progress = s.last_round ? " — раунд " + s.last_round.round + "/" + s.last_round.rounds : "";
       if (s.running) {
-        statusEl.textContent = "идёт: " + label + " (с " + s.started_at + ")";
+        statusEl.textContent = "идёт: " + label + progress + " (с " + s.started_at + ")";
       } else if (s.exit_code !== null) {
         statusEl.textContent = "завершено: " + label + " (код " + s.exit_code + ", " + s.finished_at + ")";
       } else {
         statusEl.textContent = label;
       }
-      if (s.log_tail) {
-        logEl.style.display = "block";
-        var atBottom = logEl.scrollTop + logEl.clientHeight >= logEl.scrollHeight - 20;
-        logEl.textContent = s.log_tail;
-        if (atBottom) logEl.scrollTop = logEl.scrollHeight;
+      renderSuccesses(s.successes || []);
+      if (s.error_tail) {
+        errorEl.style.display = "block";
+        errorEl.textContent = s.error_tail;
+      } else {
+        errorEl.style.display = "none";
       }
     }).catch(function () {});
   }

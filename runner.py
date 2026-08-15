@@ -15,6 +15,7 @@ Popen-объект и путь к логу держим в памяти проц
 знать о нём, пока идёт -- достаточно для однопроцессной ручной кнопки)."""
 import datetime
 import os
+import re
 import subprocess
 import threading
 
@@ -33,7 +34,15 @@ _state = {
 }
 
 LOG_DIR = os.path.join(config.PANEL_DIR, "run_logs")
-LOG_TAIL_BYTES = 32768
+
+# main.py печатает раунд двумя строками (см. orchestrator/main.py::run) --
+# заголовок с геномом, затем результат. Парсим их, чтобы показывать в
+# панели не сырой лог целиком, а только успешные попытки, лучшие по
+# байтам первыми -- сырой построчный вывод для однопроцессного локального
+# запуска малоинформативен, важны только рабочие кандидаты.
+_ROUND_RE = re.compile(r"^\[(\d+)/(\d+)\] (\S+) op=(\S+) -> (.+)$")
+_RESULT_RE = re.compile(r"^\s*-> (OK|fail) \((\d+) bytes, (\d+)ms\), домен=(.+)$")
+ERROR_TAIL_LINES = 25
 
 
 def _is_running_locked() -> bool:
@@ -92,18 +101,43 @@ def start(profile: str, rounds: int, domain: str | None) -> str | None:
         return None
 
 
+def _parse_log(text: str):
+    lines = text.splitlines()
+    successes = []
+    last_round = None
+    for i in range(len(lines) - 1):
+        m1 = _ROUND_RE.match(lines[i])
+        if not m1:
+            continue
+        last_round = {"round": int(m1.group(1)), "rounds": int(m1.group(2))}
+        m2 = _RESULT_RE.match(lines[i + 1])
+        if m2 and m2.group(1) == "OK":
+            successes.append({
+                "round": int(m1.group(1)), "rounds": int(m1.group(2)),
+                "op": m1.group(4), "args": m1.group(5),
+                "bytes": int(m2.group(2)), "latency_ms": int(m2.group(3)), "domain": m2.group(4),
+            })
+    successes.sort(key=lambda r: r["bytes"], reverse=True)
+    return successes, last_round, lines
+
+
 def status() -> dict:
     with _lock:
         running = _is_running_locked()
         snapshot = dict(_state)
 
-    log_tail = ""
+    successes, last_round, lines = [], None, []
     if snapshot["log_path"] and os.path.exists(snapshot["log_path"]):
-        with open(snapshot["log_path"], "rb") as f:
-            f.seek(0, os.SEEK_END)
-            size = f.tell()
-            f.seek(max(0, size - LOG_TAIL_BYTES))
-            log_tail = f.read().decode(errors="replace")
+        with open(snapshot["log_path"], errors="replace") as f:
+            successes, last_round, lines = _parse_log(f.read())
+
+    # Лог целиком неинформативен (сплошные fail) -- но если прогон упал с
+    # ошибкой (не 0 и не None), successes часто пуст, а разбираться, ПОЧЕМУ
+    # упало, всё равно нужно -- хвост сырого вывода тогда единственная
+    # зацепка (там же питоновский traceback, если main.py упал сам).
+    error_tail = None
+    if snapshot["exit_code"] not in (None, 0):
+        error_tail = "\n".join(lines[-ERROR_TAIL_LINES:])
 
     return {
         "running": running,
@@ -113,5 +147,7 @@ def status() -> dict:
         "started_at": snapshot["started_at"],
         "finished_at": snapshot["finished_at"],
         "exit_code": snapshot["exit_code"],
-        "log_tail": log_tail,
+        "last_round": last_round,
+        "successes": successes,
+        "error_tail": error_tail,
     }
