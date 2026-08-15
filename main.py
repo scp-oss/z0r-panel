@@ -50,13 +50,34 @@ app.include_router(db_api.router)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
-# Совпадает с orchestrator/promote.py::PROFILE_NUMBERS -- дублируется
-# сознательно (см. z2r_test-voice-bot/bot.py::VOICE_FILTER_LINES для того
-# же паттерна): панель и orchestrator -- разные процессы на одном хосте,
-# общего python-модуля между ними нет, а тянуть sys.path в соседний
-# каталог ради одного словаря лишняя связанность.
-PROFILE_NUMBERS = {"YT_TLS": 1, "GV_TLS": 2, "RKN_TLS": 3, "DS_TLS": 4, "VOICE_UDP": 6}
-PROFILE_PROTO = {"VOICE_UDP": "udp"}
+# Все 9 профилей z2r (тот же порядок, что в z0r::show_menu "111) Тестировать
+# все профили" и в rank_strategies.sh case PROFILE) -- статус-таблица на
+# /controls читает set_strategy_cli.sh get/max для ЛЮБОГО из них, это
+# read-only, ошибиться нечем. YT_QUIC_UDP=5/GAMES_UDP=7 -- [dev]-заглушки
+# в самом z2r (ещё не реализованы), get/max для них ожидаемо может вернуть
+# "ошибка чтения" -- не баг панели. FB_TLS=8/FB_HTTP=9 ("Fallback_TLS"/
+# "Fallback_HTTP" в rank_strategies.sh) хранятся в отдельном
+# locked.manual.tsv (см. z2r_autobench_lib.sh::set_strategy/get_strategy),
+# но тот же get/max CLI их тоже читает. Живой инцидент 2026-08-15: раньше
+# тут были только 5 профилей, "№" в таблице выглядел как случайный обрубок
+# 1,2,3,4,6.
+PROFILE_NUMBERS = {
+    "YT_TLS": 1, "GV_TLS": 2, "RKN_TLS": 3, "DS_TLS": 4,
+    "YT_QUIC_UDP": 5, "VOICE_UDP": 6, "GAMES_UDP": 7,
+    "FB_TLS": 8, "FB_HTTP": 9,
+}
+PROFILE_PROTO = {"VOICE_UDP": "udp", "YT_QUIC_UDP": "udp", "GAMES_UDP": "udp", "FB_HTTP": "http"}
+
+# Подмножество PROFILE_NUMBERS, которое Zenith'овский orchestrator/main.py
+# реально умеет запускать -- см. Zenith/orchestrator/genome.py::
+# PROFILE_FILTER_TYPE/PROFILE_FILTERS, там определены ТОЛЬКО эти 4 (ни
+# GV_TLS, ни fallback/dev-профили выше там не описаны -- main.py --profile
+# GV_TLS не упадёт сразу, но результат ничем не подкреплён реальным боевым
+# фильтром песочницы, см. genome.py докстринг про живой разрыв
+# достоверности песочницы). Кнопка "запустить подбор" на /controls
+# показывает только эти -- остальные профили в статус-таблице видны, но
+# не запускаемы с панели.
+RUNNABLE_PROFILES = ["YT_TLS", "RKN_TLS", "DS_TLS", "VOICE_UDP"]
 
 
 def make_connect_string(**fields) -> str:
@@ -315,7 +336,7 @@ def _controls_context(user: str, run_error: str | None = None) -> dict:
     return {
         "user": user, "profile_status": profile_status, "by_profile": by_profile,
         "local_env_name": config.LOCAL_ENVIRONMENT_NAME,
-        "run_profiles": list(PROFILE_NUMBERS.keys()),
+        "run_profiles": RUNNABLE_PROFILES,
         "run_error": run_error,
     }
 
@@ -330,7 +351,7 @@ def controls_run(
     request: Request, user: str = Depends(auth.require_login),
     profile: str = Form(...), rounds: int = Form(20), domain: str = Form(""),
 ):
-    if profile not in PROFILE_NUMBERS:
+    if profile not in RUNNABLE_PROFILES:
         error = "Неизвестный профиль."
     else:
         error = runner.start(profile, max(1, min(rounds, 500)), domain.strip() or None)
