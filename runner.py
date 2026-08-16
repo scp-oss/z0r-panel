@@ -57,6 +57,21 @@ def _is_running_locked() -> bool:
     return False
 
 
+def stop() -> str | None:
+    """None при успешной отправке SIGTERM, иначе текст ошибки. proc --
+    это сам процесс sudo (Popen отслеживает его, не дочерний main.py
+    напрямую) -- sudo по умолчанию перехватывает и пробрасывает SIGTERM
+    дальше в свою команду, отдельно убивать main.py не нужно. main.py
+    сигнал не ловит -- прерывается сразу же, как при ручном Ctrl+C в
+    терминале, ничего специально не подчищая (тот же риск, что и при
+    ручном прерывании, не новый)."""
+    with _lock:
+        if not _is_running_locked():
+            return "Прогон не идёт — нечего останавливать."
+        _state["proc"].terminate()
+        return None
+
+
 def start(profile: str, rounds: int, domain: str | None) -> str | None:
     """None при успешном старте, иначе текст ошибки для показа в панели."""
     with _lock:

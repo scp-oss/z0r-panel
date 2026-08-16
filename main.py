@@ -29,6 +29,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 import auth
 import config
+import daemon_ctl
 import db
 import db_api
 import runner
@@ -312,7 +313,7 @@ def knowledge_page(request: Request, user: str = Depends(auth.require_login)):
     return templates.TemplateResponse(request, "knowledge.html", {"user": user, "rollup": rollup})
 
 
-def _controls_context(user: str, run_error: str | None = None) -> dict:
+def _controls_context(user: str, run_error: str | None = None, daemon_error: str | None = None) -> dict:
     conn = db.connect()
     try:
         local_env_id = db.get_or_create_local_environment(conn)
@@ -338,6 +339,7 @@ def _controls_context(user: str, run_error: str | None = None) -> dict:
         "local_env_name": config.LOCAL_ENVIRONMENT_NAME,
         "run_profiles": RUNNABLE_PROFILES,
         "run_error": run_error,
+        "daemon_error": daemon_error,
     }
 
 
@@ -358,9 +360,32 @@ def controls_run(
     return templates.TemplateResponse(request, "controls.html", _controls_context(user, run_error=error))
 
 
+@app.post("/controls/run/stop")
+def controls_run_stop(request: Request, user: str = Depends(auth.require_login)):
+    error = runner.stop()
+    return templates.TemplateResponse(request, "controls.html", _controls_context(user, run_error=error))
+
+
 @app.get("/controls/run/status")
 def controls_run_status(user: str = Depends(auth.require_login)):
     return runner.status()
+
+
+@app.post("/controls/daemon/start")
+def controls_daemon_start(request: Request, user: str = Depends(auth.require_login)):
+    error = daemon_ctl.start()
+    return templates.TemplateResponse(request, "controls.html", _controls_context(user, daemon_error=error))
+
+
+@app.post("/controls/daemon/stop")
+def controls_daemon_stop(request: Request, user: str = Depends(auth.require_login)):
+    error = daemon_ctl.stop()
+    return templates.TemplateResponse(request, "controls.html", _controls_context(user, daemon_error=error))
+
+
+@app.get("/controls/daemon/status")
+def controls_daemon_status(user: str = Depends(auth.require_login)):
+    return {"active": daemon_ctl.is_active(), "log": daemon_ctl.log_tail()}
 
 
 if __name__ == "__main__":

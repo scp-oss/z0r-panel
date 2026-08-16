@@ -38,6 +38,9 @@
     <input type="text" name="domain" placeholder="кастомный домен (host[/path]), необязательно" style="width:280px">
     <button type="submit">запустить</button>
   </form>
+  <form method="post" action="/controls/run/stop" style="margin-top:8px">
+    <button type="submit">остановить</button>
+  </form>
   <p id="run-status" class="muted" style="margin-top:12px">—</p>
   <div id="run-successes"></div>
   <pre id="run-error" class="mono" style="max-height:300px; overflow:auto; background:#0f1115; border:1px solid #2a2e37; border-radius:6px; padding:10px; white-space:pre-wrap; display:none"></pre>
@@ -89,6 +92,42 @@
   }
   poll();
   setInterval(poll, 3000);
+})();
+</script>
+
+<div class="card">
+  <h3>autotune-daemon</h3>
+  <p class="muted">
+    Фоновая служба (z0r пункт 13) — health-check уже применённой стратегии,
+    полный re-tune только после нескольких провалов подряд (см.
+    <code>autotune_daemon.sh</code>). Кнопки ниже — то же самое
+    <code>systemctl start/stop</code>, что и руками из терминала.
+  </p>
+  {% if daemon_error %}<div class="flash error">{{ daemon_error }}</div>{% endif %}
+  <form method="post" action="/controls/daemon/start" class="inline">
+    <button type="submit">запустить</button>
+  </form>
+  <form method="post" action="/controls/daemon/stop" class="inline">
+    <button type="submit">остановить</button>
+  </form>
+  <p id="daemon-status" class="muted" style="margin-top:12px">—</p>
+  <pre id="daemon-log" class="mono" style="max-height:300px; overflow:auto; background:#0f1115; border:1px solid #2a2e37; border-radius:6px; padding:10px; white-space:pre-wrap"></pre>
+</div>
+<script>
+(function () {
+  var statusEl = document.getElementById("daemon-status");
+  var logEl = document.getElementById("daemon-log");
+  function poll() {
+    fetch("/controls/daemon/status").then(function (r) { return r.json(); }).then(function (s) {
+      var cls = s.active === "active" ? "ok" : (s.active === "failed" ? "warn" : "");
+      statusEl.innerHTML = "статус: <span class=\"pill" + (cls ? " " + cls : "") + "\">" + s.active + "</span>";
+      var atBottom = logEl.scrollTop + logEl.clientHeight >= logEl.scrollHeight - 20;
+      logEl.textContent = s.log || "";
+      if (atBottom) logEl.scrollTop = logEl.scrollHeight;
+    }).catch(function () {});
+  }
+  poll();
+  setInterval(poll, 5000);
 })();
 </script>
 
