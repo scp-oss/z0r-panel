@@ -119,7 +119,7 @@ def _zapret2_status() -> str | None:
     стратегию залоченной в памяти без единой ошибки в логе)."""
     try:
         out = subprocess.run(
-            ["sudo", "-n", "systemctl", "show", "zapret2", "--property=ActiveEnterTimestamp,SubState"],
+            ["sudo", "-n", "systemctl", "show", "zapret2", "--property=ActiveEnterTimestamp", "--property=SubState"],
             capture_output=True, text=True, timeout=10,
         )
         return out.stdout.strip() if out.returncode == 0 else None
