@@ -278,30 +278,6 @@ def set_promoted_strategy(conn, genome_id: str, environment_id: int, strategy: i
     return cur.rowcount > 0
 
 
-def pick_promotable_genome(conn, profile: str, environment_id: int, min_pulls: int):
-    """Тот же критерий, что и Zenith'овский orchestrator/promote.py::
-    pick_best() -- 100% успехов, минимум min_pulls прогонов, лучший
-    avg_score. Используется автопродвижением (см. promoter.py) --
-    автоматизирует ровно тот же шаг, что человек делал бы руками через
-    promote.py по тем же правилам, не придумывает свой критерий.
-    promoted_strategy в выдаче -- чтобы вызывающий сразу видел, что этот
-    геном уже продвинут (и пропустил его, не продвигал повторно)."""
-    cur = conn.cursor(dictionary=True)
-    cur.execute(
-        """SELECT g.id, g.rendered_args, g.source, g.generation,
-                  gs.pulls, gs.successes, gs.promoted_strategy,
-                  ROUND(gs.total_reward / NULLIF(gs.pulls, 0), 3) AS avg_score
-           FROM genome_scores gs
-           JOIN genomes g ON g.id = gs.genome_id AND g.profile = %s
-           WHERE gs.environment_id = %s AND g.family != 'control'
-             AND gs.pulls >= %s AND gs.successes = gs.pulls
-           ORDER BY avg_score DESC
-           LIMIT 1""",
-        (profile, environment_id, min_pulls),
-    )
-    return cur.fetchone()
-
-
 def genome_ancestors(conn, genome_id: str, max_depth: int = 20):
     """Цепочка родителей вверх (parent1) -- история мутаций 'откуда этот
     геном взялся'. parent2 (crossover) добавляется отдельной пометкой на

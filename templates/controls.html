@@ -77,53 +77,50 @@
 </div>
 
 <div class="card">
-  <h3>Периодический автозапуск</h3>
+  <h3>zenith-autorun — периодическая генерация кандидатов</h3>
   <p class="muted">
-    Раз в {{ autorun_interval_minutes }} мин запускает {{ autorun_rounds }}
-    раундов для одного из {{ run_profiles | join(', ') }} по кругу (не все
-    сразу — см. <code>ZENITH_AUTORUN_INTERVAL_MINUTES</code>/
-    <code>ZENITH_AUTORUN_ROUNDS</code> в <code>.env</code>). Использует тот
-    же прогон, что и кнопка «запустить» выше — статус/лог общий, смотри
-    блок над этой карточкой. Если в момент срабатывания уже что-то
-    крутится (ручной запуск или предыдущий цикл) — это срабатывание молча
-    пропускается, следующее будет через тот же интервал.
+    Независимый systemd-юнит (<code>Zenith/zenith_autorun.sh</code>) — по
+    кругу, по одному профилю за раз, запускает то же самое, что кнопка
+    «запустить» выше, только сам и по расписанию (интервал/раунды — в
+    <code>Zenith/.env</code>, не тут). Работает и без панели — эти кнопки
+    просто <code>systemctl start/stop</code> поверх него, как для
+    autotune-daemon ниже.
   </p>
-  <p class="muted" style="margin-top:0">
-    Состояние: <span class="pill{% if autorun_enabled %} ok{% endif %}">{{ 'включён' if autorun_enabled else 'выключен' }}</span>
-  </p>
-  <form method="post" action="/controls/autorun/enable" class="inline">
-    <button type="submit">включить</button>
+  {% if autorun_error %}<div class="flash error">{{ autorun_error }}</div>{% endif %}
+  <form method="post" action="/controls/zenith-autorun/start" class="inline">
+    <button type="submit">запустить</button>
   </form>
-  <form method="post" action="/controls/autorun/disable" class="inline">
-    <button type="submit">выключить</button>
+  <form method="post" action="/controls/zenith-autorun/stop" class="inline">
+    <button type="submit">остановить</button>
   </form>
+  <p id="zenith-autorun-status" class="muted" style="margin-top:12px">—</p>
+  <pre id="zenith-autorun-log" class="mono" style="max-height:300px; overflow:auto; background:#0f1115; border:1px solid #2a2e37; border-radius:6px; padding:10px; white-space:pre-wrap"></pre>
 </div>
 
 <div class="card">
-  <h3>Автопродвижение в прод</h3>
+  <h3>zenith-promoter — автопродвижение в прод</h3>
   <p class="muted">
-    Раз в {{ autorun_interval_minutes }} мин, для одного профиля за раз:
-    если у Zenith есть кандидат с {{ promoter_min_pulls }}+ прогонами и
-    100% успехом (тот же критерий, что <code>promote.py</code>) — сама
-    добавляет новый <code>strategy=N</code> в
-    <code>/opt/zapret2/config</code>, переключает на него, перезапускает
-    <code>zapret2</code>, проверяет, что применилось. Не прошла проверка —
-    сама откатывает конфиг из бэкапа и возвращает старую стратегию.
-    Backup делается перед КАЖДОЙ записью (см.
-    <code>promote_apply_cli.sh</code>) — откатить руками можно всегда,
-    даже если что-то пошло не так, пока эта автоматика выключена.
+    Независимый systemd-юнит (<code>Zenith/orchestrator/auto_promoter.py
+    --loop</code>) — критерий тот же, что <code>promote.py</code>
+    (min_pulls + 100% успехов), но РЕАЛЬНО применяет: добавляет
+    <code>strategy=N</code> в <code>/opt/zapret2/config</code>,
+    переключает, рестартует <code>zapret2</code>, проверяет и сам
+    откатывает (backup + старая стратегия + рестарт), если проверка не
+    прошла. Работает и без панели — см.
+    <code>z0r</code> пункт 22 → «Автономный режим» для установки и
+    обязательной ручной проверки перед первым включением на боевом
+    сервере.
   </p>
-  <p class="muted" style="margin-top:0">
-    Состояние: <span class="pill{% if promoter_enabled %} ok{% endif %}">{{ 'включено' if promoter_enabled else 'выключено' }}</span>
-  </p>
-  {% if promoter_last_result %}<p class="muted">Последнее срабатывание: {{ promoter_last_result }}</p>{% endif %}
-  <form method="post" action="/controls/promoter/enable" class="inline"
+  {% if promoter_error %}<div class="flash error">{{ promoter_error }}</div>{% endif %}
+  <form method="post" action="/controls/zenith-promoter/start" class="inline"
         onsubmit="return confirm('Включить автопродвижение? Это будет менять боевой /opt/zapret2/config и перезапускать zapret2 БЕЗ подтверждения человека на каждом срабатывании.');">
-    <button type="submit">включить</button>
+    <button type="submit">запустить</button>
   </form>
-  <form method="post" action="/controls/promoter/disable" class="inline">
-    <button type="submit">выключить</button>
+  <form method="post" action="/controls/zenith-promoter/stop" class="inline">
+    <button type="submit">остановить</button>
   </form>
+  <p id="zenith-promoter-status" class="muted" style="margin-top:12px">—</p>
+  <pre id="zenith-promoter-log" class="mono" style="max-height:300px; overflow:auto; background:#0f1115; border:1px solid #2a2e37; border-radius:6px; padding:10px; white-space:pre-wrap"></pre>
 </div>
 <script>
 (function () {
@@ -194,11 +191,11 @@
   <pre id="daemon-log" class="mono" style="max-height:300px; overflow:auto; background:#0f1115; border:1px solid #2a2e37; border-radius:6px; padding:10px; white-space:pre-wrap"></pre>
 </div>
 <script>
-(function () {
-  var statusEl = document.getElementById("daemon-status");
-  var logEl = document.getElementById("daemon-log");
+function pollServiceStatus(statusUrl, statusElId, logElId) {
+  var statusEl = document.getElementById(statusElId);
+  var logEl = document.getElementById(logElId);
   function poll() {
-    fetch("/controls/daemon/status").then(function (r) { return r.json(); }).then(function (s) {
+    fetch(statusUrl).then(function (r) { return r.json(); }).then(function (s) {
       var cls = s.active === "active" ? "ok" : (s.active === "failed" ? "warn" : "");
       statusEl.innerHTML = "статус: <span class=\"pill" + (cls ? " " + cls : "") + "\">" + s.active + "</span>";
       var atBottom = logEl.scrollTop + logEl.clientHeight >= logEl.scrollHeight - 20;
@@ -208,7 +205,10 @@
   }
   poll();
   setInterval(poll, 5000);
-})();
+}
+pollServiceStatus("/controls/zenith-autorun/status", "zenith-autorun-status", "zenith-autorun-log");
+pollServiceStatus("/controls/zenith-promoter/status", "zenith-promoter-status", "zenith-promoter-log");
+pollServiceStatus("/controls/daemon/status", "daemon-status", "daemon-log");
 </script>
 
 {% for profile, rows in by_profile.items() %}

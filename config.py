@@ -103,21 +103,8 @@ SET_STRATEGY_CLI = os.path.join(Z2R_AUTOBENCH_DIR, "set_strategy_cli.sh")
 ZENITH_ORCHESTRATOR_DIR = _get("ZENITH_ORCHESTRATOR_DIR", os.path.join(Z2R_AUTOBENCH_DIR, "Zenith", "orchestrator"))
 ZENITH_VENV_PYTHON = _get("ZENITH_VENV_PYTHON", os.path.join(ZENITH_ORCHESTRATOR_DIR, "venv", "bin", "python3"))
 
-# Периодический автозапуск (см. autorun.py) -- дефолт нарочно редкий
-# (часы, не минуты) и по одному профилю за раз, не все сразу -- см.
-# CLAUDE.md z2r_autobench "Ban/rate-limit avoidance": плотный поток
-# неудачных хендшейков без разбора рискует эскалацией инспекции у
-# DPI-мидлбокса, не только баном тестового домена.
-ZENITH_AUTORUN_INTERVAL_MINUTES = int(_get("ZENITH_AUTORUN_INTERVAL_MINUTES", "240"))
-ZENITH_AUTORUN_ROUNDS = int(_get("ZENITH_AUTORUN_ROUNDS", "20"))
-
-# Автопродвижение найденных геномов в /opt/zapret2/config без человека
-# (см. promoter.py) -- самая рискованная автоматика в проекте, поэтому
-# отдельный узкий скрипт (promote_apply_cli.sh), не общий root-доступ на
-# запись файла. PROMOTE_BACKUP_DIR -- backup конфига делает сам скрипт
-# ПЕРЕД каждой записью (обязательный шаг, не опция), сюда же смотрит
-# промоутер при автооткате, если restart/health-check не прошли.
-PROMOTE_APPLY_CLI = os.path.join(Z2R_AUTOBENCH_DIR, "promote_apply_cli.sh")
-PROMOTE_BACKUP_DIR = _get("PROMOTE_BACKUP_DIR", "/opt/zapret2/config_backups")
-ZAPRET2_CONFIG_PATH = _get("ZAPRET2_CONFIG_PATH", "/opt/zapret2/config")
-ZENITH_PROMOTER_MIN_PULLS = int(_get("ZENITH_PROMOTER_MIN_PULLS", "5"))
+# Периодический автозапуск и автопродвижение живут как НЕЗАВИСИМЫЕ от
+# панели systemd-юниты (zenith-autorun.service/zenith-promoter.service,
+# см. Zenith/README.md "Автономный режим") -- их интервал/пороги
+# настраиваются в Zenith/.env, не здесь. Панель на /controls -- только
+# start/stop/log поверх этих же юнитов (см. daemon_ctl.py).

@@ -15,16 +15,14 @@ get/max):
     человек делает через z0r пункт 21, просто кнопкой вместо SSH,
     исполняет только то, что человек явно указал в форме;
   - 2026-08-16 (по прямому запросу "цель: автономная работа без
-    человеческого вмешательства"): добавлено автопродвижение (см.
-    promoter.py, карточка "Автопродвижение в прод" на /controls) --
-    БЕЗ участия человека находит лучшего Zenith-кандидата (порог тот
-    же, что promote.py::pick_best -- min_pulls + 100% успехов),
-    добавляет новый strategy=N в конфиг (promote_apply_cli.sh),
-    переключает, рестартует zapret2 и откатывает всё назад, если
-    health-check не прошёл. Это единственное место, где панель САМА
-    решает, что применять в прод, а не просто исполняет команду
-    человека -- по умолчанию выключено, см. README "Автопродвижение"
-    перед тем, как включать.
+    человеческого вмешательства"): добавлено автопродвижение. Логика
+    (find candidate -> apply -> set -> restart -> verify -> rollback)
+    живёт НЕ в панели, а в Zenith'овском orchestrator/auto_promoter.py
+    как systemd-юнит zenith-promoter.service -- НЕЗАВИСИМО от того,
+    установлена панель или нет (по прямому запросу "панель это модуль...
+    функционал должен быть в CLI и без панели"). Панель на /controls --
+    ТОЛЬКО пульт (start/stop/log) поверх этого же юнита, см. daemon_ctl.py,
+    так же, как для autotune-daemon и zenith-autorun.
 
 Запуск: см. run.sh / README.md (systemd-юнит zenith-panel.service).
 """
@@ -40,12 +38,10 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 import auth
-import autorun
 import config
 import daemon_ctl
 import db
 import db_api
-import promoter
 import runner
 import sync_api
 
@@ -85,9 +81,8 @@ PROFILE_PROTO = {"VOICE_UDP": "udp", "YT_QUIC_UDP": "udp", "GAMES_UDP": "udp", "
 
 # Подмножество PROFILE_NUMBERS, которое Zenith умеет запускать -- см.
 # runner.RUNNABLE_PROFILES докстринг. Кнопка "запустить подбор" на
-# /controls и планировщик автозапуска (autorun.py) показывают/используют
-# только эти -- остальные профили в статус-таблице видны, но не
-# запускаемы с панели.
+# /controls показывает только эти -- остальные профили в статус-таблице
+# видны, но не запускаемы с панели.
 
 
 def make_connect_string(**fields) -> str:
@@ -341,6 +336,7 @@ def knowledge_page(request: Request, user: str = Depends(auth.require_login)):
 def _controls_context(
     user: str, run_error: str | None = None, daemon_error: str | None = None,
     strategy_error: str | None = None, strategy_ok: str | None = None,
+    autorun_error: str | None = None, promoter_error: str | None = None,
 ) -> dict:
     conn = db.connect()
     try:
@@ -372,12 +368,8 @@ def _controls_context(
         "strategy_ok": strategy_ok,
         "strategy_profiles": list(PROFILE_NUMBERS.keys()),
         "zapret2_status": _zapret2_status(),
-        "autorun_enabled": autorun.is_enabled(),
-        "autorun_interval_minutes": config.ZENITH_AUTORUN_INTERVAL_MINUTES,
-        "autorun_rounds": config.ZENITH_AUTORUN_ROUNDS,
-        "promoter_enabled": promoter.is_enabled(),
-        "promoter_min_pulls": config.ZENITH_PROMOTER_MIN_PULLS,
-        "promoter_last_result": promoter.last_result(),
+        "autorun_error": autorun_error,
+        "promoter_error": promoter_error,
     }
 
 
@@ -455,45 +447,55 @@ def controls_run_status(user: str = Depends(auth.require_login)):
     return runner.status()
 
 
-@app.post("/controls/autorun/enable")
-def controls_autorun_enable(request: Request, user: str = Depends(auth.require_login)):
-    autorun.set_enabled(True)
-    return templates.TemplateResponse(request, "controls.html", _controls_context(user))
-
-
-@app.post("/controls/autorun/disable")
-def controls_autorun_disable(request: Request, user: str = Depends(auth.require_login)):
-    autorun.set_enabled(False)
-    return templates.TemplateResponse(request, "controls.html", _controls_context(user))
-
-
-@app.post("/controls/promoter/enable")
-def controls_promoter_enable(request: Request, user: str = Depends(auth.require_login)):
-    promoter.set_enabled(True)
-    return templates.TemplateResponse(request, "controls.html", _controls_context(user))
-
-
-@app.post("/controls/promoter/disable")
-def controls_promoter_disable(request: Request, user: str = Depends(auth.require_login)):
-    promoter.set_enabled(False)
-    return templates.TemplateResponse(request, "controls.html", _controls_context(user))
-
-
 @app.post("/controls/daemon/start")
 def controls_daemon_start(request: Request, user: str = Depends(auth.require_login)):
-    error = daemon_ctl.start()
+    error = daemon_ctl.autotune_daemon.start()
     return templates.TemplateResponse(request, "controls.html", _controls_context(user, daemon_error=error))
 
 
 @app.post("/controls/daemon/stop")
 def controls_daemon_stop(request: Request, user: str = Depends(auth.require_login)):
-    error = daemon_ctl.stop()
+    error = daemon_ctl.autotune_daemon.stop()
     return templates.TemplateResponse(request, "controls.html", _controls_context(user, daemon_error=error))
 
 
 @app.get("/controls/daemon/status")
 def controls_daemon_status(user: str = Depends(auth.require_login)):
-    return {"active": daemon_ctl.is_active(), "log": daemon_ctl.log_tail()}
+    return {"active": daemon_ctl.autotune_daemon.is_active(), "log": daemon_ctl.autotune_daemon.log_tail()}
+
+
+@app.post("/controls/zenith-autorun/start")
+def controls_zenith_autorun_start(request: Request, user: str = Depends(auth.require_login)):
+    error = daemon_ctl.zenith_autorun.start()
+    return templates.TemplateResponse(request, "controls.html", _controls_context(user, autorun_error=error))
+
+
+@app.post("/controls/zenith-autorun/stop")
+def controls_zenith_autorun_stop(request: Request, user: str = Depends(auth.require_login)):
+    error = daemon_ctl.zenith_autorun.stop()
+    return templates.TemplateResponse(request, "controls.html", _controls_context(user, autorun_error=error))
+
+
+@app.get("/controls/zenith-autorun/status")
+def controls_zenith_autorun_status(user: str = Depends(auth.require_login)):
+    return {"active": daemon_ctl.zenith_autorun.is_active(), "log": daemon_ctl.zenith_autorun.log_tail()}
+
+
+@app.post("/controls/zenith-promoter/start")
+def controls_zenith_promoter_start(request: Request, user: str = Depends(auth.require_login)):
+    error = daemon_ctl.zenith_promoter.start()
+    return templates.TemplateResponse(request, "controls.html", _controls_context(user, promoter_error=error))
+
+
+@app.post("/controls/zenith-promoter/stop")
+def controls_zenith_promoter_stop(request: Request, user: str = Depends(auth.require_login)):
+    error = daemon_ctl.zenith_promoter.stop()
+    return templates.TemplateResponse(request, "controls.html", _controls_context(user, promoter_error=error))
+
+
+@app.get("/controls/zenith-promoter/status")
+def controls_zenith_promoter_status(user: str = Depends(auth.require_login)):
+    return {"active": daemon_ctl.zenith_promoter.is_active(), "log": daemon_ctl.zenith_promoter.log_tail()}
 
 
 if __name__ == "__main__":
