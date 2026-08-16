@@ -75,6 +75,29 @@
   <div id="run-successes"></div>
   <pre id="run-error" class="mono" style="max-height:300px; overflow:auto; background:#0f1115; border:1px solid #2a2e37; border-radius:6px; padding:10px; white-space:pre-wrap; display:none"></pre>
 </div>
+
+<div class="card">
+  <h3>Периодический автозапуск</h3>
+  <p class="muted">
+    Раз в {{ autorun_interval_minutes }} мин запускает {{ autorun_rounds }}
+    раундов для одного из {{ run_profiles | join(', ') }} по кругу (не все
+    сразу — см. <code>ZENITH_AUTORUN_INTERVAL_MINUTES</code>/
+    <code>ZENITH_AUTORUN_ROUNDS</code> в <code>.env</code>). Использует тот
+    же прогон, что и кнопка «запустить» выше — статус/лог общий, смотри
+    блок над этой карточкой. Если в момент срабатывания уже что-то
+    крутится (ручной запуск или предыдущий цикл) — это срабатывание молча
+    пропускается, следующее будет через тот же интервал.
+  </p>
+  <p class="muted" style="margin-top:0">
+    Состояние: <span class="pill{% if autorun_enabled %} ok{% endif %}">{{ 'включён' if autorun_enabled else 'выключен' }}</span>
+  </p>
+  <form method="post" action="/controls/autorun/enable" class="inline">
+    <button type="submit">включить</button>
+  </form>
+  <form method="post" action="/controls/autorun/disable" class="inline">
+    <button type="submit">выключить</button>
+  </form>
+</div>
 <script>
 (function () {
   var statusEl = document.getElementById("run-status");

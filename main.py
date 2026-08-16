@@ -31,6 +31,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 import auth
+import autorun
 import config
 import daemon_ctl
 import db
@@ -72,16 +73,11 @@ PROFILE_NUMBERS = {
 }
 PROFILE_PROTO = {"VOICE_UDP": "udp", "YT_QUIC_UDP": "udp", "GAMES_UDP": "udp", "FB_HTTP": "http"}
 
-# Подмножество PROFILE_NUMBERS, которое Zenith'овский orchestrator/main.py
-# реально умеет запускать -- см. Zenith/orchestrator/genome.py::
-# PROFILE_FILTER_TYPE/PROFILE_FILTERS, там определены ТОЛЬКО эти 4 (ни
-# GV_TLS, ни fallback/dev-профили выше там не описаны -- main.py --profile
-# GV_TLS не упадёт сразу, но результат ничем не подкреплён реальным боевым
-# фильтром песочницы, см. genome.py докстринг про живой разрыв
-# достоверности песочницы). Кнопка "запустить подбор" на /controls
-# показывает только эти -- остальные профили в статус-таблице видны, но
-# не запускаемы с панели.
-RUNNABLE_PROFILES = ["YT_TLS", "RKN_TLS", "DS_TLS", "VOICE_UDP"]
+# Подмножество PROFILE_NUMBERS, которое Zenith умеет запускать -- см.
+# runner.RUNNABLE_PROFILES докстринг. Кнопка "запустить подбор" на
+# /controls и планировщик автозапуска (autorun.py) показывают/используют
+# только эти -- остальные профили в статус-таблице видны, но не
+# запускаемы с панели.
 
 
 def make_connect_string(**fields) -> str:
@@ -359,13 +355,16 @@ def _controls_context(
     return {
         "user": user, "profile_status": profile_status, "by_profile": by_profile,
         "local_env_name": config.LOCAL_ENVIRONMENT_NAME,
-        "run_profiles": RUNNABLE_PROFILES,
+        "run_profiles": runner.RUNNABLE_PROFILES,
         "run_error": run_error,
         "daemon_error": daemon_error,
         "strategy_error": strategy_error,
         "strategy_ok": strategy_ok,
         "strategy_profiles": list(PROFILE_NUMBERS.keys()),
         "zapret2_status": _zapret2_status(),
+        "autorun_enabled": autorun.is_enabled(),
+        "autorun_interval_minutes": config.ZENITH_AUTORUN_INTERVAL_MINUTES,
+        "autorun_rounds": config.ZENITH_AUTORUN_ROUNDS,
     }
 
 
@@ -425,7 +424,7 @@ def controls_run(
     request: Request, user: str = Depends(auth.require_login),
     profile: str = Form(...), rounds: int = Form(20), domain: str = Form(""),
 ):
-    if profile not in RUNNABLE_PROFILES:
+    if profile not in runner.RUNNABLE_PROFILES:
         error = "Неизвестный профиль."
     else:
         error = runner.start(profile, max(1, min(rounds, 500)), domain.strip() or None)
@@ -441,6 +440,18 @@ def controls_run_stop(request: Request, user: str = Depends(auth.require_login))
 @app.get("/controls/run/status")
 def controls_run_status(user: str = Depends(auth.require_login)):
     return runner.status()
+
+
+@app.post("/controls/autorun/enable")
+def controls_autorun_enable(request: Request, user: str = Depends(auth.require_login)):
+    autorun.set_enabled(True)
+    return templates.TemplateResponse(request, "controls.html", _controls_context(user))
+
+
+@app.post("/controls/autorun/disable")
+def controls_autorun_disable(request: Request, user: str = Depends(auth.require_login)):
+    autorun.set_enabled(False)
+    return templates.TemplateResponse(request, "controls.html", _controls_context(user))
 
 
 @app.post("/controls/daemon/start")

@@ -21,6 +21,18 @@ import threading
 
 import config
 
+# Подмножество z2r-профилей, которое Zenith'овский orchestrator/main.py
+# реально умеет запускать -- см. Zenith/orchestrator/genome.py::
+# PROFILE_FILTER_TYPE/PROFILE_FILTERS, там определены ТОЛЬКО эти 4 (ни
+# GV_TLS, ни fallback/dev-профили из main.py::PROFILE_NUMBERS там не
+# описаны -- main.py --profile GV_TLS не упадёт сразу, но результат ничем
+# не подкреплён реальным боевым фильтром песочницы). Живёт здесь, а не в
+# main.py -- используется и кнопкой "запустить подбор" (main.py), и
+# планировщиком периодического автозапуска (autorun.py), а main.py
+# импортировать из autorun.py означало бы цикл импорта (main.py уже
+# импортирует и runner, и autorun).
+RUNNABLE_PROFILES = ["YT_TLS", "RKN_TLS", "DS_TLS", "VOICE_UDP"]
+
 _lock = threading.Lock()
 _state = {
     "proc": None,

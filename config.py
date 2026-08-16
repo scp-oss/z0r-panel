@@ -102,3 +102,11 @@ SET_STRATEGY_CLI = os.path.join(Z2R_AUTOBENCH_DIR, "set_strategy_cli.sh")
 # main.py --profile ...").
 ZENITH_ORCHESTRATOR_DIR = _get("ZENITH_ORCHESTRATOR_DIR", os.path.join(Z2R_AUTOBENCH_DIR, "Zenith", "orchestrator"))
 ZENITH_VENV_PYTHON = _get("ZENITH_VENV_PYTHON", os.path.join(ZENITH_ORCHESTRATOR_DIR, "venv", "bin", "python3"))
+
+# Периодический автозапуск (см. autorun.py) -- дефолт нарочно редкий
+# (часы, не минуты) и по одному профилю за раз, не все сразу -- см.
+# CLAUDE.md z2r_autobench "Ban/rate-limit avoidance": плотный поток
+# неудачных хендшейков без разбора рискует эскалацией инспекции у
+# DPI-мидлбокса, не только баном тестового домена.
+ZENITH_AUTORUN_INTERVAL_MINUTES = int(_get("ZENITH_AUTORUN_INTERVAL_MINUTES", "240"))
+ZENITH_AUTORUN_ROUNDS = int(_get("ZENITH_AUTORUN_ROUNDS", "20"))
