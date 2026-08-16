@@ -7,15 +7,24 @@ Zenith/panel/), но работает НА той же машине, что ло
 orchestrator, и делит с ним ту же MySQL (см. config.py) -- отдельной БД
 для панели нет.
 
-Границы ответственности панели: раньше был принцип "панель НИКОГДА не
-пишет в боевой /opt/zapret2/config" (только get/max) -- по прямому
-запросу 2026-08-15 это осознанно изменено. /controls теперь умеет и
-set_strategy_cli.sh set (ручное переключение стратегии, форма
-"Ручное переключение стратегии"), и restart zapret2 -- то же самое
-действие, что человек делает через z0r пункт 21, просто кнопкой вместо
-SSH. Панель по-прежнему НИЧЕГО не выбирает и не применяет САМА --
-Zenith/promote.py как считали лучшего кандидата, так и считают, кнопка
-только исполняет то, что человек явно указал в форме.
+Границы ответственности панели прошли два осознанных изменения от
+исходного "НИКОГДА не пишет в боевой /opt/zapret2/config" (только
+get/max):
+  - 2026-08-15: /controls научилась set_strategy_cli.sh set (ручное
+    переключение) и restart zapret2 -- то же самое действие, что
+    человек делает через z0r пункт 21, просто кнопкой вместо SSH,
+    исполняет только то, что человек явно указал в форме;
+  - 2026-08-16 (по прямому запросу "цель: автономная работа без
+    человеческого вмешательства"): добавлено автопродвижение (см.
+    promoter.py, карточка "Автопродвижение в прод" на /controls) --
+    БЕЗ участия человека находит лучшего Zenith-кандидата (порог тот
+    же, что promote.py::pick_best -- min_pulls + 100% успехов),
+    добавляет новый strategy=N в конфиг (promote_apply_cli.sh),
+    переключает, рестартует zapret2 и откатывает всё назад, если
+    health-check не прошёл. Это единственное место, где панель САМА
+    решает, что применять в прод, а не просто исполняет команду
+    человека -- по умолчанию выключено, см. README "Автопродвижение"
+    перед тем, как включать.
 
 Запуск: см. run.sh / README.md (systemd-юнит zenith-panel.service).
 """
@@ -36,6 +45,7 @@ import config
 import daemon_ctl
 import db
 import db_api
+import promoter
 import runner
 import sync_api
 
@@ -365,6 +375,9 @@ def _controls_context(
         "autorun_enabled": autorun.is_enabled(),
         "autorun_interval_minutes": config.ZENITH_AUTORUN_INTERVAL_MINUTES,
         "autorun_rounds": config.ZENITH_AUTORUN_ROUNDS,
+        "promoter_enabled": promoter.is_enabled(),
+        "promoter_min_pulls": config.ZENITH_PROMOTER_MIN_PULLS,
+        "promoter_last_result": promoter.last_result(),
     }
 
 
@@ -451,6 +464,18 @@ def controls_autorun_enable(request: Request, user: str = Depends(auth.require_l
 @app.post("/controls/autorun/disable")
 def controls_autorun_disable(request: Request, user: str = Depends(auth.require_login)):
     autorun.set_enabled(False)
+    return templates.TemplateResponse(request, "controls.html", _controls_context(user))
+
+
+@app.post("/controls/promoter/enable")
+def controls_promoter_enable(request: Request, user: str = Depends(auth.require_login)):
+    promoter.set_enabled(True)
+    return templates.TemplateResponse(request, "controls.html", _controls_context(user))
+
+
+@app.post("/controls/promoter/disable")
+def controls_promoter_disable(request: Request, user: str = Depends(auth.require_login)):
+    promoter.set_enabled(False)
     return templates.TemplateResponse(request, "controls.html", _controls_context(user))
 
 

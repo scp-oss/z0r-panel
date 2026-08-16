@@ -98,6 +98,33 @@
     <button type="submit">выключить</button>
   </form>
 </div>
+
+<div class="card">
+  <h3>Автопродвижение в прод</h3>
+  <p class="muted">
+    Раз в {{ autorun_interval_minutes }} мин, для одного профиля за раз:
+    если у Zenith есть кандидат с {{ promoter_min_pulls }}+ прогонами и
+    100% успехом (тот же критерий, что <code>promote.py</code>) — сама
+    добавляет новый <code>strategy=N</code> в
+    <code>/opt/zapret2/config</code>, переключает на него, перезапускает
+    <code>zapret2</code>, проверяет, что применилось. Не прошла проверка —
+    сама откатывает конфиг из бэкапа и возвращает старую стратегию.
+    Backup делается перед КАЖДОЙ записью (см.
+    <code>promote_apply_cli.sh</code>) — откатить руками можно всегда,
+    даже если что-то пошло не так, пока эта автоматика выключена.
+  </p>
+  <p class="muted" style="margin-top:0">
+    Состояние: <span class="pill{% if promoter_enabled %} ok{% endif %}">{{ 'включено' if promoter_enabled else 'выключено' }}</span>
+  </p>
+  {% if promoter_last_result %}<p class="muted">Последнее срабатывание: {{ promoter_last_result }}</p>{% endif %}
+  <form method="post" action="/controls/promoter/enable" class="inline"
+        onsubmit="return confirm('Включить автопродвижение? Это будет менять боевой /opt/zapret2/config и перезапускать zapret2 БЕЗ подтверждения человека на каждом срабатывании.');">
+    <button type="submit">включить</button>
+  </form>
+  <form method="post" action="/controls/promoter/disable" class="inline">
+    <button type="submit">выключить</button>
+  </form>
+</div>
 <script>
 (function () {
   var statusEl = document.getElementById("run-status");

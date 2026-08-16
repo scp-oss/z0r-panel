@@ -110,3 +110,14 @@ ZENITH_VENV_PYTHON = _get("ZENITH_VENV_PYTHON", os.path.join(ZENITH_ORCHESTRATOR
 # DPI-мидлбокса, не только баном тестового домена.
 ZENITH_AUTORUN_INTERVAL_MINUTES = int(_get("ZENITH_AUTORUN_INTERVAL_MINUTES", "240"))
 ZENITH_AUTORUN_ROUNDS = int(_get("ZENITH_AUTORUN_ROUNDS", "20"))
+
+# Автопродвижение найденных геномов в /opt/zapret2/config без человека
+# (см. promoter.py) -- самая рискованная автоматика в проекте, поэтому
+# отдельный узкий скрипт (promote_apply_cli.sh), не общий root-доступ на
+# запись файла. PROMOTE_BACKUP_DIR -- backup конфига делает сам скрипт
+# ПЕРЕД каждой записью (обязательный шаг, не опция), сюда же смотрит
+# промоутер при автооткате, если restart/health-check не прошли.
+PROMOTE_APPLY_CLI = os.path.join(Z2R_AUTOBENCH_DIR, "promote_apply_cli.sh")
+PROMOTE_BACKUP_DIR = _get("PROMOTE_BACKUP_DIR", "/opt/zapret2/config_backups")
+ZAPRET2_CONFIG_PATH = _get("ZAPRET2_CONFIG_PATH", "/opt/zapret2/config")
+ZENITH_PROMOTER_MIN_PULLS = int(_get("ZENITH_PROMOTER_MIN_PULLS", "5"))
