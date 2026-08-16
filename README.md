@@ -48,8 +48,11 @@ Zenith'е -- `zenith_autorun.sh` (генерация кандидатов по �
 `orchestrator/auto_promoter.py --loop` (автопродвижение, критерий тот
 же, что `promote.py::pick_best()` -- min_pulls + 100% успехов; пишет
 новый `strategy=N` через `z2r_autobench/promote_apply_cli.sh`,
-переключает, рестартует `zapret2`, проверяет и сам откатывает через
-backup, если проверка не прошла). Обе карточки на `/controls`
+переключает, рестартует `zapret2`, проверяет ЖИВЫМ curl по доменам
+профиля из `domain_pool` (не только `systemctl is-active`/`get` --
+живой инцидент 2026-08-16: геном прошёл sandbox 6/6, но не работал в
+проде, `is-active`/`get` этого не ловят) и сам откатывает через backup,
+если проверка не прошла. Обе карточки на `/controls`
 (`zenith-autorun`/`zenith-promoter`) -- это `daemon_ctl.py`, тот же
 узкий `systemctl start/stop/is-active/journalctl`, что уже используется
 для `autotune-daemon` -- панель НИЧЕГО не решает и не исполняет из этой
