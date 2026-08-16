@@ -21,12 +21,18 @@
 дублируются между двумя `.env`, т.к. это независимо деплоящиеся кодовые
 базы -- см. `config.py`).
 
-**Границы ответственности** (сознательно, по прямому запросу -- "только
-через существующие скрипты"): панель НИКОГДА не пишет в боевой
-`/opt/zapret2/config` и не запускает `set_strategy_cli.sh set` откуда-либо
-в UI. Только читает (`get`/`max`) и отображает то, что Zenith'овские
-`orchestrator/main.py` и `promote.py` уже посчитали -- финальное
-применение остаётся ручным шагом человека, как и раньше.
+**Границы ответственности** -- изначально (по прямому запросу "только
+через существующие скрипты") панель была принципиально read-only:
+`set_strategy_cli.sh get`/`max` и никогда `set`. По прямому запросу
+2026-08-15 это осознанно расширено: `/controls` теперь умеет и
+`set_strategy_cli.sh set` (форма "Ручное переключение стратегии"), и
+`systemctl restart zapret2` -- то же самое действие, что человек делает
+через `z0r` пункт 21 руками из терминала, просто кнопкой вместо SSH.
+Что панель по-прежнему НЕ делает -- не решает САМА, какого генома или
+какую стратегию продвигать: Zenith'овские `orchestrator/main.py` и
+`promote.py` как считали кандидатов, так и считают, кнопка на `/controls`
+только исполняет то, что человек явно указал в форме (номер профиля +
+номер стратегии), ничего не выбирает автоматически.
 
 ## Мульти-провайдерный sync (hub-and-spoke)
 
@@ -61,11 +67,15 @@
 #    (в репозитории Zenith): mysql -u zenith -p z2r_genome <
 #    db/migrations/001_panel_sync.sql
 
-# 2. Системный юзер -- доступ к MySQL (по паролю из .env) и read-only
-#    sudo на set_strategy_cli.sh get/max для страницы /controls (НИКОГДА
-#    set -- панель ничего не применяет в боевой конфиг сама).
+# 2. Системный юзер + sudoers -- через z0r (пункт 15) это делается
+#    автоматически и идемпотентно на каждый заход в пункт (см.
+#    z2r_autobench/z0r::ensure_panel_runtime_grants) -- вручную нужно
+#    только при установке в обход z0r. Права: set_strategy_cli.sh
+#    get/max/set, restart+show для zapret2.service, start/stop/is-active/
+#    journalctl для autotune-daemon.service, и запуск Zenith'овского
+#    orchestrator/main.py (для кнопки "запустить подбор").
 sudo useradd --system --no-create-home --shell /usr/sbin/nologin zenith-panel
-echo 'zenith-panel ALL=(root) NOPASSWD: /usr/bin/bash /opt/z2r_autobench/set_strategy_cli.sh get *, /usr/bin/bash /opt/z2r_autobench/set_strategy_cli.sh max *' \
+echo 'zenith-panel ALL=(root) NOPASSWD: /usr/bin/bash /opt/z2r_autobench/set_strategy_cli.sh get *, /usr/bin/bash /opt/z2r_autobench/set_strategy_cli.sh max *, /usr/bin/bash /opt/z2r_autobench/set_strategy_cli.sh set *, /usr/bin/systemctl restart zapret2, /usr/bin/systemctl show zapret2 --property=ActiveEnterTimestamp,SubState, /opt/z2r_autobench/Zenith/orchestrator/venv/bin/python3 main.py --profile * --rounds *, /usr/bin/systemctl start autotune-daemon, /usr/bin/systemctl stop autotune-daemon, /usr/bin/systemctl is-active autotune-daemon, /usr/bin/journalctl -u autotune-daemon -n 200 --no-pager' \
   | sudo tee /etc/sudoers.d/zenith-panel
 sudo chmod 440 /etc/sudoers.d/zenith-panel
 

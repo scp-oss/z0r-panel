@@ -3,11 +3,13 @@
 {% block content %}
 <h1>Статус профилей (локальная нода: {{ local_env_name }})</h1>
 <p class="muted">
-  Только чтение — <code>set_strategy_cli.sh get/max</code>. Панель ничего не
-  применяет в боевой конфиг сама (см. README «Границы ответственности
-  панели») — для продвижения генома в прод используй
-  <code>promote.py</code> руками, как обычно; здесь только видно, что уже
-  залочено и какие геномы Zenith нашёл лучшими локально.
+  <code>set_strategy_cli.sh get/max</code> — статус ниже read-only как и
+  раньше. Ручное переключение (форма ниже) — то же самое действие, что
+  <code>set_strategy_cli.sh set</code> или z0r пункт 21 руками из
+  терминала, просто кнопкой (см. README «Границы ответственности
+  панели» — раздел обновлён). Панель по-прежнему НИЧЕГО не выбирает и не
+  применяет сама — какого генома продвигать, по-прежнему решает человек
+  через <code>promote.py</code>.
 </p>
 
 <table>
@@ -22,6 +24,34 @@
   </tr>
   {% endfor %}
 </table>
+
+<div class="card">
+  <h3>Ручное переключение стратегии</h3>
+  <p class="muted">
+    <code>set_strategy_cli.sh set</code> — пишет в <code>locked.tsv</code>,
+    НЕ горячее применение само по себе (<code>circular_locked</code> держит
+    max strategy= в памяти процесса <code>zapret2</code> без TTL) — после
+    set обязательно нажми restart ниже и проверь, что
+    <code>ActiveEnterTimestamp</code> обновился только что.
+  </p>
+  {% if strategy_error %}<div class="flash error">{{ strategy_error }}</div>{% endif %}
+  {% if strategy_ok %}<div class="flash">{{ strategy_ok }}</div>{% endif %}
+  <form method="post" action="/controls/strategy/set"
+        onsubmit="return confirm('Переключить боевую стратегию? Это меняет прод-трафик прямо сейчас (после restart zapret2).');">
+    <select name="profile">
+      {% for p in strategy_profiles %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
+    </select>
+    <input type="number" name="strategy" min="1" placeholder="№ strategy" style="width:110px" required>
+    <button type="submit">применить (set)</button>
+  </form>
+  <form method="post" action="/controls/zapret2/restart" style="margin-top:8px"
+        onsubmit="return confirm('Перезапустить zapret2 сейчас? Кратковременно оборвёт активные соединения через него.');">
+    <button type="submit">restart zapret2</button>
+  </form>
+  <p class="muted" style="margin-top:12px">
+    zapret2: <span class="blur">{{ zapret2_status or 'статус недоступен' }}</span>
+  </p>
+</div>
 
 <div class="card">
   <h3>Запустить подбор на локальной ноде ({{ local_env_name }})</h3>

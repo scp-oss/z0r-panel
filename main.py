@@ -7,12 +7,15 @@ Zenith/panel/), но работает НА той же машине, что ло
 orchestrator, и делит с ним ту же MySQL (см. config.py) -- отдельной БД
 для панели нет.
 
-Границы ответственности панели (сознательно, по прямому запросу --
-"только через существующие скрипты"): панель НИКОГДА не пишет в боевой
-/opt/zapret2/config и не запускает set_strategy_cli.sh set откуда-либо в
-UI. Она только читает (get/max) и отображает то, что Zenith'овские
-orchestrator/main.py и promote.py уже посчитали -- финальное применение
-остаётся ручным шагом человека, как и раньше.
+Границы ответственности панели: раньше был принцип "панель НИКОГДА не
+пишет в боевой /opt/zapret2/config" (только get/max) -- по прямому
+запросу 2026-08-15 это осознанно изменено. /controls теперь умеет и
+set_strategy_cli.sh set (ручное переключение стратегии, форма
+"Ручное переключение стратегии"), и restart zapret2 -- то же самое
+действие, что человек делает через z0r пункт 21, просто кнопкой вместо
+SSH. Панель по-прежнему НИЧЕГО не выбирает и не применяет САМА --
+Zenith/promote.py как считали лучшего кандидата, так и считают, кнопка
+только исполняет то, что человек явно указал в форме.
 
 Запуск: см. run.sh / README.md (systemd-юнит zenith-panel.service).
 """
@@ -104,6 +107,22 @@ def _run_cli(*args) -> str | None:
         if out.returncode != 0:
             return None
         return out.stdout.strip()
+    except Exception:
+        return None
+
+
+def _zapret2_status() -> str | None:
+    """ActiveEnterTimestamp/SubState -- после restart нужно ПОДТВЕРДИТЬ,
+    что он реально только что произошёл (см. promote.py "circular_locked
+    держит max strategy= в памяти процесса без TTL" -- живой инцидент
+    2026-08-07, restart, который тихо не сработал, оставляет старую
+    стратегию залоченной в памяти без единой ошибки в логе)."""
+    try:
+        out = subprocess.run(
+            ["sudo", "-n", "systemctl", "show", "zapret2", "--property=ActiveEnterTimestamp,SubState"],
+            capture_output=True, text=True, timeout=10,
+        )
+        return out.stdout.strip() if out.returncode == 0 else None
     except Exception:
         return None
 
@@ -313,7 +332,10 @@ def knowledge_page(request: Request, user: str = Depends(auth.require_login)):
     return templates.TemplateResponse(request, "knowledge.html", {"user": user, "rollup": rollup})
 
 
-def _controls_context(user: str, run_error: str | None = None, daemon_error: str | None = None) -> dict:
+def _controls_context(
+    user: str, run_error: str | None = None, daemon_error: str | None = None,
+    strategy_error: str | None = None, strategy_ok: str | None = None,
+) -> dict:
     conn = db.connect()
     try:
         local_env_id = db.get_or_create_local_environment(conn)
@@ -340,12 +362,62 @@ def _controls_context(user: str, run_error: str | None = None, daemon_error: str
         "run_profiles": RUNNABLE_PROFILES,
         "run_error": run_error,
         "daemon_error": daemon_error,
+        "strategy_error": strategy_error,
+        "strategy_ok": strategy_ok,
+        "strategy_profiles": list(PROFILE_NUMBERS.keys()),
+        "zapret2_status": _zapret2_status(),
     }
 
 
 @app.get("/controls")
 def controls_page(request: Request, user: str = Depends(auth.require_login)):
     return templates.TemplateResponse(request, "controls.html", _controls_context(user))
+
+
+@app.post("/controls/strategy/set")
+def controls_strategy_set(
+    request: Request, user: str = Depends(auth.require_login),
+    profile: str = Form(...), strategy: int = Form(...),
+):
+    """Ручное переключение стратегии -- то же самое, что z0r пункт 21 или
+    голый set_strategy_cli.sh set, просто кнопкой (см. main.py докстринг
+    "Границы ответственности панели" -- осознанно изменено 2026-08-15).
+    НЕ горячее применение само по себе -- ниже отдельная кнопка restart
+    zapret2, её нужно нажать следом (та же оговорка, что в выводе
+    promote.py)."""
+    error = None
+    if profile not in PROFILE_NUMBERS:
+        error = "Неизвестный профиль."
+    elif strategy < 1:
+        error = "Номер стратегии должен быть положительным."
+    ok = None
+    if not error:
+        num = PROFILE_NUMBERS[profile]
+        proto = PROFILE_PROTO.get(profile, "tls")
+        result = _run_cli("set", str(num), proto, str(strategy))
+        if result is None:
+            error = f"set_strategy_cli.sh set {num} {proto} {strategy} завершился с ошибкой."
+        else:
+            ok = f"{profile}: strategy={strategy} записана в locked.tsv. Не забудь restart zapret2 ниже — set сам по себе не горячее применение."
+    return templates.TemplateResponse(
+        request, "controls.html", _controls_context(user, strategy_error=error, strategy_ok=ok),
+    )
+
+
+@app.post("/controls/zapret2/restart")
+def controls_zapret2_restart(request: Request, user: str = Depends(auth.require_login)):
+    try:
+        out = subprocess.run(
+            ["sudo", "-n", "systemctl", "restart", "zapret2"],
+            capture_output=True, text=True, timeout=15,
+        )
+        error = None if out.returncode == 0 else (out.stderr.strip() or "systemctl restart zapret2 завершился с ошибкой.")
+    except Exception as e:
+        error = str(e)
+    ok = None if error else "zapret2 перезапущен — проверь ActiveEnterTimestamp ниже, должен быть только что."
+    return templates.TemplateResponse(
+        request, "controls.html", _controls_context(user, strategy_error=error, strategy_ok=ok),
+    )
 
 
 @app.post("/controls/run")
