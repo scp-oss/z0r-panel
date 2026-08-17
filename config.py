@@ -7,6 +7,7 @@ Zenith/panel/, выделен по прямому запросу). Своя .env
 как был, так и остался обычным клиентом той же MySQL, просто конфиг
 подключения теперь свой, не общий с orchestrator/."""
 import os
+import secrets
 
 
 def _load_env(path):
@@ -42,7 +43,43 @@ MYSQL_DATABASE = _get("MYSQL_DATABASE", "z2r_genome")
 # одного владельца смысла нет.
 PANEL_ADMIN_USER = _get("PANEL_ADMIN_USER", "admin")
 PANEL_ADMIN_PASSWORD_HASH = _get("PANEL_ADMIN_PASSWORD_HASH", "")
-PANEL_SESSION_SECRET = _get("PANEL_SESSION_SECRET", "")
+
+# Раньше при пустом PANEL_SESSION_SECRET main.py тихо подставлял
+# захардкоженную ПУБЛИЧНУЮ строку ("dev-insecure-change-me", буквально в
+# этом репо) как ключ подписи сессионной куки -- живая уязвимость, найдена
+# при аудите перед деплоем на МТС 2026-08-17 (любой, кто читал репо, мог
+# подделать куку {"user":"admin"} и получить полный /controls). Никакого
+# публичного fallback'а больше нет: если секрет не задан явно в .env,
+# генерируем ОДИН раз и сохраняем в локальный файл (chmod 600, не в git,
+# см. .gitignore) -- тот же принцип "просто работает без ручных шагов",
+# что и у остального инсталлятора, но без публичного секрета. Файл
+# специфичен для этого сервера -- секрет НЕ пытается быть стабильным
+# между разными установками.
+_SESSION_SECRET_FILE = os.path.join(PANEL_DIR, ".session_secret")
+
+
+def _load_or_create_session_secret() -> str:
+    explicit = _get("PANEL_SESSION_SECRET", "")
+    if explicit:
+        return explicit
+    try:
+        with open(_SESSION_SECRET_FILE) as f:
+            existing = f.read().strip()
+        if existing:
+            return existing
+    except OSError:
+        pass
+    generated = secrets.token_hex(32)
+    try:
+        fd = os.open(_SESSION_SECRET_FILE, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w") as f:
+            f.write(generated)
+    except OSError:
+        pass  # не смогли сохранить на диск -- секрет будет новым при каждом рестарте (хуже для сессий, но не публичный)
+    return generated
+
+
+PANEL_SESSION_SECRET = _load_or_create_session_secret()
 
 
 # TLS -- панель терминирует HTTPS САМА (uvicorn ssl_certfile/ssl_keyfile),

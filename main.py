@@ -29,7 +29,6 @@ get/max):
 import base64
 import json
 import subprocess
-import sys
 
 from fastapi import Depends, FastAPI, Form, Request
 from fastapi.responses import RedirectResponse
@@ -45,14 +44,10 @@ import db_api
 import runner
 import sync_api
 
-if not config.PANEL_SESSION_SECRET:
-    print("PANEL_SESSION_SECRET не задан в .env -- сессии не переживут рестарт панели. "
-          "Сгенерируй: python3 -c 'import secrets; print(secrets.token_hex(32))'", file=sys.stderr)
-
 app = FastAPI(title="Zenith panel")
 app.add_middleware(
     SessionMiddleware,
-    secret_key=config.PANEL_SESSION_SECRET or "dev-insecure-change-me",
+    secret_key=config.PANEL_SESSION_SECRET,
     https_only=config.PANEL_COOKIE_HTTPS_ONLY,
 )
 app.add_exception_handler(auth.NotAuthenticated, auth.not_authenticated_handler)
