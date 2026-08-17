@@ -37,6 +37,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 import auth
+import autoupdate_ctl
 import config
 import daemon_ctl
 import db
@@ -379,6 +380,7 @@ def _controls_context(
     user: str, run_error: str | None = None, daemon_error: str | None = None,
     strategy_error: str | None = None, strategy_ok: str | None = None,
     autorun_error: str | None = None, promoter_error: str | None = None,
+    autoupdate_error: str | None = None, autoupdate_ok: str | None = None,
 ) -> dict:
     conn = db.connect()
     try:
@@ -412,6 +414,10 @@ def _controls_context(
         "zapret2_status": _zapret2_status(),
         "autorun_error": autorun_error,
         "promoter_error": promoter_error,
+        "autoupdate_projects": autoupdate_ctl.project_statuses(),
+        "autoupdate_timer_status": autoupdate_ctl.timer_status(),
+        "autoupdate_error": autoupdate_error,
+        "autoupdate_ok": autoupdate_ok,
     }
 
 
@@ -576,6 +582,35 @@ def controls_zenith_promoter_stop(request: Request, user: str = Depends(auth.req
 @app.get("/controls/zenith-promoter/status")
 def controls_zenith_promoter_status(user: str = Depends(auth.require_login)):
     return {"active": daemon_ctl.zenith_promoter.is_active(), "log": daemon_ctl.zenith_promoter.log_tail()}
+
+
+@app.post("/controls/autoupdate/toggle")
+def controls_autoupdate_toggle(
+    request: Request, user: str = Depends(auth.require_login),
+    project: str = Form(...), enabled: str = Form(...),
+):
+    """Переключает автообновление для ОДНОГО проекта -- пишет тот же
+    /etc/z2r_autobench/autoupdate.conf, что читает и z0r пункт 26 (см.
+    autoupdate_ctl.py). Если таймер ещё не установлен на этом сервере,
+    флаг всё равно пишется (пригодится, когда таймер поставят через
+    z0r) -- страница явно это подскажет через autoupdate_timer_status."""
+    error = autoupdate_ctl.set_project(project, enabled == "1")
+    ok = None
+    if not error:
+        label = autoupdate_ctl.PROJECT_LABELS.get(project, project)
+        ok = f"{label}: автообновление {'включено' if enabled == '1' else 'выключено'}."
+    return templates.TemplateResponse(
+        request, "controls.html", _controls_context(user, autoupdate_error=error, autoupdate_ok=ok),
+    )
+
+
+@app.post("/controls/autoupdate/run")
+def controls_autoupdate_run(request: Request, user: str = Depends(auth.require_login)):
+    error = autoupdate_ctl.run_now()
+    ok = None if error else "Обновление запущено -- результат через несколько секунд, см. лог ниже (обнови страницу)."
+    return templates.TemplateResponse(
+        request, "controls.html", _controls_context(user, autoupdate_error=error, autoupdate_ok=ok),
+    )
 
 
 if __name__ == "__main__":
