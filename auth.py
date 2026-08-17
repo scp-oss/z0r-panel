@@ -5,6 +5,7 @@ SessionMiddleware, требует PANEL_SESSION_SECRET). Токены нод -- 
 import hashlib
 import hmac
 import os
+import sys
 
 from fastapi import HTTPException, Request
 from starlette.responses import RedirectResponse
@@ -70,13 +71,30 @@ def require_node(request: Request) -> dict:
         node_name = request.headers.get("x-node-name", "").strip()
         node_provider = request.headers.get("x-node-provider", "").strip()
         if node_name and node_provider:
-            if db.self_report_node(conn, env["id"], node_name, node_provider):
-                env["name"], env["provider"] = node_name, node_provider
-            else:
+            ok, provider_mismatch = db.self_report_node(conn, env["id"], node_name, node_provider)
+            if not ok:
                 raise HTTPException(
                     status_code=409,
                     detail=f"Имя '{node_name}' уже занято другой нодой -- смени ZENITH_ENVIRONMENT_NAME в .env",
                 )
+            env["name"] = node_name
+            if provider_mismatch:
+                # provider зафиксирован при первом self-report и больше не
+                # переписывается автоматически (см. db.self_report_node)
+                # -- нода прислала ДРУГОЙ provider, чем уже сохранён.
+                # Не блокируем запрос (name/last_sync_at всё равно
+                # обновляются), но громко логируем -- либо оператор
+                # реально сменил ZENITH_ENVIRONMENT_PROVIDER (тогда смена
+                # provider делается на /nodes руками), либо это стоит
+                # заметить (найдено при аудите перед деплоем на МТС
+                # 2026-08-17).
+                print(
+                    f"self_report_node: нода '{node_name}' (id={env['id']}) прислала provider='{node_provider}', "
+                    f"но у неё уже зафиксирован другой -- provider НЕ изменён, поменяй на /nodes руками, если это осознанно.",
+                    file=sys.stderr,
+                )
+            else:
+                env["provider"] = node_provider
         # last_sync_at раньше обновлялся только внутри sync_push -- ноды в
         # ZENITH_DB_MODE=api никогда не зовут push (у них нет локального
         # снапшота, который пушить), поэтому у них колонка молча оставалась

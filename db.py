@@ -70,24 +70,42 @@ def reissue_node_token(conn, environment_id: int) -> str:
     return token
 
 
-def self_report_node(conn, environment_id: int, name: str, provider: str) -> bool:
+def self_report_node(conn, environment_id: int, name: str, provider: str) -> tuple:
     """Нода сообщает своё реальное имя/провайдера при push (см.
     sync_api.py::push) -- перезаписывает placeholder ('pending-<uuid8>')
-    или любое предыдущее значение, идемпотентно на каждый push (если
-    оператор потом поменяет ZENITH_ENVIRONMENT_NAME локально -- панель
-    сама подхватит на следующей синхронизации, без ручного вмешательства).
-    Возвращает False при конфликте имени с ДРУГОЙ нодой (name UNIQUE) --
-    вызывающий код должен сообщить об этом ноде понятной ошибкой, а не
-    затирать чужую запись."""
+    в name, идемпотентно на каждый push.
+
+    provider раньше перезаписывался БЕЗУСЛОВНО на каждый запрос -- один
+    и тот же токен мог слать РАЗНЫЙ provider на разных вызовах, искусственно
+    раздувая "проверено независимо на N провайдерах" (см.
+    bootstrap_candidates/knowledge_family_rollup, оба COUNT(DISTINCT
+    provider)) -- найдено при аудите перед деплоем на МТС 2026-08-17.
+    Теперь provider фиксируется ОДИН раз (пока в БД NULL), дальше self-report
+    его больше не трогает -- реальная смена провайдера ноды (переезд и
+    т.п.) требует явного действия человека на /nodes, не молчаливого
+    автоподхвата на каждый push. name по-прежнему обновляется как раньше
+    (свой UNIQUE уже не даёт подделать чужую запись).
+
+    Возвращает (ok, provider_mismatch): ok=False только при конфликте
+    ИМЕНИ с другой нодой (name и provider тогда не тронуты).
+    provider_mismatch=True, если нода прислала provider, отличный от уже
+    зафиксированного -- name всё равно обновился, provider -- НЕТ,
+    вызывающий код решает, стоит ли это залогировать/показать оператору."""
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT provider FROM environments WHERE id=%s", (environment_id,))
+    row = cur.fetchone()
+    current_provider = row["provider"] if row else None
+    provider_mismatch = bool(current_provider) and current_provider != provider
+
     cur = conn.cursor()
     try:
-        cur.execute(
-            "UPDATE environments SET name=%s, provider=%s WHERE id=%s",
-            (name, provider, environment_id),
-        )
-        return True
+        if current_provider:
+            cur.execute("UPDATE environments SET name=%s WHERE id=%s", (name, environment_id))
+        else:
+            cur.execute("UPDATE environments SET name=%s, provider=%s WHERE id=%s", (name, provider, environment_id))
+        return True, provider_mismatch
     except mysql.connector.errors.IntegrityError:
-        return False
+        return False, provider_mismatch
 
 
 def get_environment_by_token(conn, token: str):
@@ -344,11 +362,21 @@ def sync_push(conn, environment_id: int, genomes: list, scores: list) -> dict:
             ),
         )
     for s in scores:
+        # VALUES(col), не "... AS new ON DUPLICATE KEY UPDATE col = new.col"
+        # -- та форма требует MySQL 8.0.19+, свежая ВМ нового провайдера
+        # (МТС и далее) вполне может оказаться на MariaDB или более старом
+        # MySQL, где это просто синтаксическая ошибка (найдено при аудите
+        # перед деплоем на МТС 2026-08-17). VALUES() в MySQL 8.0.20+
+        # помечена deprecated (но работает, только warning) -- предпочтительнее
+        # жёсткого отказа на несовместимой версии. Остальные upsert'ы в
+        # этом файле (upsert_genome_score/upsert_operator_stat) её уже
+        # используют для инкрементов -- тут тот же приём, просто для
+        # перезаписи снапшотом, а не сложения.
         cur.execute(
             """INSERT INTO genome_scores (genome_id, environment_id, pulls, successes, total_reward)
-               VALUES (%s,%s,%s,%s,%s) AS new
+               VALUES (%s,%s,%s,%s,%s)
                ON DUPLICATE KEY UPDATE
-                 pulls = new.pulls, successes = new.successes, total_reward = new.total_reward""",
+                 pulls = VALUES(pulls), successes = VALUES(successes), total_reward = VALUES(total_reward)""",
             (s["genome_id"], environment_id, s["pulls"], s["successes"], s["total_reward"]),
         )
     touch_node_sync(conn, environment_id)

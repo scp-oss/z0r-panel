@@ -48,6 +48,18 @@
         onsubmit="return confirm('Перезапустить zapret2 сейчас? Кратковременно оборвёт активные соединения через него.');">
     <button type="submit">restart zapret2</button>
   </form>
+  <form method="post" action="/controls/strategy/verify" class="inline" style="margin-top:8px">
+    <select name="profile">
+      {% for p in strategy_profiles %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
+    </select>
+    <button type="submit">проверить живым трафиком</button>
+  </form>
+  <p class="muted" style="margin-top:0">
+    После set+restart status/код ответа ничего не гарантируют (<code>circular_locked</code>
+    может тихо не подхватить новую стратегию, см. выше) — эта кнопка реально
+    curl'ит домены профиля из <code>domain_pool</code>, как это уже делает
+    <code>zenith-promoter</code> сам после автопродвижения.
+  </p>
   <p class="muted" style="margin-top:12px">
     zapret2: <span class="blur">{{ zapret2_status or 'статус недоступен' }}</span>
   </p>

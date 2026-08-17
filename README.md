@@ -103,19 +103,31 @@ Zenith'е -- `zenith_autorun.sh` (генерация кандидатов по �
 # 2. Системный юзер + sudoers -- через z0r (пункт 15) это делается
 #    автоматически и идемпотентно на каждый заход в пункт (см.
 #    z2r_autobench/z0r::ensure_panel_runtime_grants) -- вручную нужно
-#    только при установке в обход z0r. Права: set_strategy_cli.sh
-#    get/max/set, restart+show для zapret2.service, start/stop/is-active/
-#    journalctl для autotune-daemon.service, и запуск Zenith'овского
-#    orchestrator/main.py (для кнопки "запустить подбор").
+#    только при установке в обход z0r (ЭТА строка -- fallback, держи её
+#    синхронной с ensure_panel_runtime_grants в z0r, иначе после
+#    обновления z0r кнопки start/stop для zenith-autorun/zenith-promoter
+#    или "запустить подбор" начнут падать с молчаливым запросом пароля --
+#    живой случай рассинхрона найден при аудите перед деплоем на МТС
+#    2026-08-17). Права: set_strategy_cli.sh get/max/set, restart+show
+#    (ДВА отдельных --property=, не через запятую -- sudoers режет список
+#    команд по запятой даже внутри аргумента) для zapret2.service,
+#    start/stop/is-active/journalctl для autotune-daemon.service И для
+#    zenith-autorun.service/zenith-promoter.service (см. Zenith/README.md
+#    "Автономный режим"), и flock-обёрнутый запуск Zenith'овского
+#    orchestrator/main.py (для кнопки "запустить подбор" -- flock держит
+#    лок на дочернем процессе, не в памяти панели, см. runner.py).
 sudo useradd --system --no-create-home --shell /usr/sbin/nologin zenith-panel
-echo 'zenith-panel ALL=(root) NOPASSWD: /usr/bin/bash /opt/z2r_autobench/set_strategy_cli.sh get *, /usr/bin/bash /opt/z2r_autobench/set_strategy_cli.sh max *, /usr/bin/bash /opt/z2r_autobench/set_strategy_cli.sh set *, /usr/bin/systemctl restart zapret2, /usr/bin/systemctl show zapret2 --property=ActiveEnterTimestamp,SubState, /opt/z2r_autobench/Zenith/orchestrator/venv/bin/python3 main.py --profile * --rounds *, /usr/bin/systemctl start autotune-daemon, /usr/bin/systemctl stop autotune-daemon, /usr/bin/systemctl is-active autotune-daemon, /usr/bin/journalctl -u autotune-daemon -n 200 --no-pager' \
+echo 'zenith-panel ALL=(root) NOPASSWD: /usr/bin/bash /opt/z2r_autobench/set_strategy_cli.sh get *, /usr/bin/bash /opt/z2r_autobench/set_strategy_cli.sh max *, /usr/bin/bash /opt/z2r_autobench/set_strategy_cli.sh set *, /usr/bin/systemctl restart zapret2, /usr/bin/systemctl show zapret2 --property=ActiveEnterTimestamp --property=SubState, /usr/bin/flock -n /opt/z2r_autobench/Zenith/orchestrator/.run.lock /opt/z2r_autobench/Zenith/orchestrator/venv/bin/python3 /opt/z2r_autobench/Zenith/orchestrator/main.py --profile * --rounds *, /usr/bin/systemctl start autotune-daemon, /usr/bin/systemctl stop autotune-daemon, /usr/bin/systemctl is-active autotune-daemon, /usr/bin/journalctl -u autotune-daemon -n 200 --no-pager, /usr/bin/systemctl start zenith-autorun, /usr/bin/systemctl stop zenith-autorun, /usr/bin/systemctl is-active zenith-autorun, /usr/bin/journalctl -u zenith-autorun -n 200 --no-pager, /usr/bin/systemctl start zenith-promoter, /usr/bin/systemctl stop zenith-promoter, /usr/bin/systemctl is-active zenith-promoter, /usr/bin/journalctl -u zenith-promoter -n 200 --no-pager' \
   | sudo tee /etc/sudoers.d/zenith-panel
 sudo chmod 440 /etc/sudoers.d/zenith-panel
 
 cp .env.example .env   # заполнить MYSQL_*/PANEL_* (см. комментарии в файле)
 python3 -m venv venv && venv/bin/pip install -r requirements.txt
 venv/bin/python3 gen_password_hash.py   # -> PANEL_ADMIN_PASSWORD_HASH в .env
-python3 -c 'import secrets; print(secrets.token_hex(32))'   # -> PANEL_SESSION_SECRET в .env
+# PANEL_SESSION_SECRET можно не задавать вручную -- если пусто, панель сама
+# сгенерирует и сохранит случайный секрет в .session_secret при первом
+# запуске (см. config.py) -- задавай явно только если нужен ФИКСИРОВАННЫЙ
+# секрет (напр. переносишь .session_secret между серверами вручную).
 
 sudo cp zenith-panel.service /etc/systemd/system/
 sudo systemctl daemon-reload

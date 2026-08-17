@@ -107,6 +107,53 @@ def _run_cli(*args) -> str | None:
         return None
 
 
+def _probe_real(host: str, path: str, min_bytes: int, timeout: int = 8) -> tuple:
+    """curl обычным процессом панели, БЕЗ sandbox-скоупа -- та же логика,
+    что и Zenith'овский orchestrator/auto_promoter.py::_probe_real() (см.
+    её докстринг: tester.py::probe() тестирует ТОЛЬКО zenith-sandbox юзера
+    через отдельный iptables-скоуп, не годится для проверки того, что
+    реально видят пользователи через боевой zapret2)."""
+    url = f"https://{host}{path or '/'}"
+    try:
+        out = subprocess.run(
+            ["curl", "-s", "-o", "/dev/null", "-w", "%{size_download}",
+             "--connect-timeout", "5", "--max-time", str(timeout), url],
+            capture_output=True, text=True, timeout=timeout + 3,
+        )
+        bytes_ = int((out.stdout or "0").strip() or 0)
+    except Exception:
+        bytes_ = 0
+    return bytes_ >= min_bytes, bytes_
+
+
+def _real_traffic_check(profile: str) -> str:
+    """Живая проверка живым curl по доменам профиля из domain_pool --
+    раньше "Ручное переключение стратегии" верило только коду возврата
+    set_strategy_cli.sh/systemctl restart (см. main.py докстринг про
+    circular_locked без TTL), а не тому, реально ли работает трафик --
+    та же дыра, что уже нашли и закрыли в Zenith auto_promoter.py.
+    Найдено при аудите перед деплоем на МТС 2026-08-17. Кнопка на
+    /controls -- ТОЛЬКО показывает результат, ничего не откатывает сама
+    (в отличие от автопродвижения, тут за рулём человек, он сам решает,
+    что делать с результатом)."""
+    conn = db.connect()
+    try:
+        domains = db.get_domains_for_profile(conn, profile)
+    finally:
+        conn.close()
+    if not domains:
+        return f"{profile}: нет доменов в domain_pool для этого профиля -- нечем проверить."
+    results = []
+    all_ok = True
+    for d in domains:
+        ok, bytes_ = _probe_real(d["host"], d["path"], d["min_bytes"])
+        all_ok = all_ok and ok
+        mark = "OK" if ok else "ПРОВАЛ"
+        results.append(f"{d['host']}{d['path']}: {mark} ({bytes_} байт, нужно {d['min_bytes']}+)")
+    prefix = "живой трафик работает" if all_ok else "!!! ЖИВОЙ ТРАФИК НЕ РАБОТАЕТ"
+    return f"{profile}: {prefix} -- " + "; ".join(results)
+
+
 def _zapret2_status() -> str | None:
     """ActiveEnterTimestamp/SubState -- после restart нужно ПОДТВЕРДИТЬ,
     что он реально только что произошёл (см. promote.py "circular_locked
@@ -389,6 +436,26 @@ def controls_strategy_set(
         error = "Неизвестный профиль."
     elif strategy < 1:
         error = "Номер стратегии должен быть положительным."
+    else:
+        # Верхняя граница -- раньше её не было вообще, только "strategy >= 1",
+        # так что опечатка (5 вместо 500, копипаста не того числа) писалась
+        # в locked.tsv без единой проверки -- ровно тот numbering gap, от
+        # которого явно предостерегает CLAUDE.md z2r_autobench ("Never
+        # introduce a numbering gap... every tool silently wastes cycles on
+        # the nonexistent numbers"). Найдено при аудите перед деплоем на
+        # МТС 2026-08-17. Сверяем с РЕАЛЬНЫМ текущим max для профиля --
+        # если геном только что добавили руками в конфиг, max уже это
+        # видит (config_profile_max_strategy читает файл заново каждый раз),
+        # так что легитимные случаи это не блокирует.
+        max_out = _run_cli("max", str(PROFILE_NUMBERS[profile]))
+        if max_out is not None and max_out.isdigit() and strategy > int(max_out):
+            error = (
+                f"strategy={strategy} больше текущего max={max_out} для этого профиля -- "
+                "похоже на опечатку. Переключение на номер, которого ещё нет в конфиге, "
+                "оставит профиль без рабочей стратегии. Если это НОВАЯ стратегия -- "
+                "сперва добавь её в /opt/zapret2/config (эта кнопка только переключает "
+                "уже существующие)."
+            )
     ok = None
     if not error:
         num = PROFILE_NUMBERS[profile]
@@ -416,6 +483,24 @@ def controls_zapret2_restart(request: Request, user: str = Depends(auth.require_
     ok = None if error else "zapret2 перезапущен — проверь ActiveEnterTimestamp ниже, должен быть только что."
     return templates.TemplateResponse(
         request, "controls.html", _controls_context(user, strategy_error=error, strategy_ok=ok),
+    )
+
+
+@app.post("/controls/strategy/verify")
+def controls_strategy_verify(
+    request: Request, user: str = Depends(auth.require_login),
+    profile: str = Form(...),
+):
+    """Живая проверка ПОСЛЕ set+restart -- см. _real_traffic_check()
+    докстринг. Отдельная кнопка, не автоматическая -- за рулём человек,
+    он сам решает, что делать с результатом (в отличие от
+    zenith-promoter, который откатывает сам)."""
+    if profile not in PROFILE_NUMBERS:
+        result = "Неизвестный профиль."
+    else:
+        result = _real_traffic_check(profile)
+    return templates.TemplateResponse(
+        request, "controls.html", _controls_context(user, strategy_ok=result),
     )
 
 
