@@ -9,10 +9,11 @@
   <h2>{{ profile }}{% if profile not in runnable_profiles %} <span class="pill">ещё не в Zenith</span>{% endif %}</h2>
   {% if rows %}
   <table>
-    <tr><th>Нода</th><th>Провайдер</th><th>Геном</th><th>Источник</th><th>Прогонов</th><th>Успехов</th><th>avg_score</th></tr>
+    <tr><th>UUID</th><th>Нода</th><th>Провайдер</th><th>Геном</th><th>Источник</th><th>Прогонов</th><th>Успехов</th><th>avg_score</th></tr>
     {% for r in rows %}
     <tr>
-      <td>{{ r.environment_name }} {% if r.is_production %}<span class="pill prod">prod</span>{% endif %}</td>
+      <td><code class="mono">{{ r.node_uuid[:8] if r.node_uuid else '—' }}</code></td>
+      <td><span class="blur">{{ r.environment_name }}</span> {% if r.is_production %}<span class="pill prod">prod</span>{% endif %}</td>
       <td><span class="blur">{{ r.provider }}</span></td>
       <td>
         <a class="gid mono" href="/genome/{{ r.genome_id }}">{{ r.rendered_args[:70] }}{% if r.rendered_args|length > 70 %}…{% endif %}</a>

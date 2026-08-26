@@ -212,7 +212,7 @@ def overview_rows(conn):
     cur = conn.cursor(dictionary=True)
     cur.execute(
         """SELECT g.profile, e.id AS environment_id, e.name AS environment_name,
-                  e.provider, e.is_production,
+                  e.provider, e.is_production, e.node_uuid,
                   g.id AS genome_id, g.rendered_args, g.source, g.family,
                   gs.pulls, gs.successes, gs.total_reward, gs.promoted_strategy,
                   ROUND(gs.total_reward / NULLIF(gs.pulls, 0), 3) AS avg_score
