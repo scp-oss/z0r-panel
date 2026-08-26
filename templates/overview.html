@@ -17,7 +17,14 @@
       <td><span class="blur">{{ r.provider }}</span></td>
       <td>
         <a class="gid mono" href="/genome/{{ r.genome_id }}">{{ r.rendered_args[:70] }}{% if r.rendered_args|length > 70 %}…{% endif %}</a>
-        {% if r.promoted_strategy is not none %}<span class="pill prod">strategy={{ r.promoted_strategy }}</span>{% endif %}
+        {% if r.promoted_strategy is not none %}
+          {% set live = live_locked.get(profile) if r.environment_name == local_env_name else none %}
+          {% if live and live != r.promoted_strategy|string %}
+          <span class="pill warn" title="Этот геном когда-то был продвинут как strategy={{ r.promoted_strategy }}, но с тех пор автопромоутер (или ручное переключение) сдвинул боевую стратегию дальше -- метка устарела">strategy={{ r.promoted_strategy }} (устарело, сейчас {{ live }})</span>
+          {% else %}
+          <span class="pill prod">strategy={{ r.promoted_strategy }}</span>
+          {% endif %}
+        {% endif %}
       </td>
       <td><span class="pill">{{ r.source }}</span></td>
       <td>{{ r.pulls }}</td>

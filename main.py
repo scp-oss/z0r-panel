@@ -211,9 +211,31 @@ def overview(request: Request, user: str = Depends(auth.require_login)):
     by_profile = {p: [] for p in PROFILE_NUMBERS}
     for row in rows:
         by_profile.setdefault(row["profile"], []).append(row)
+
+    # Живая проверка "продвинутая метка ещё актуальна?" -- ТОЛЬКО для
+    # локальной ноды этого хоста (set_strategy_cli.sh читает ИМЕННО этот
+    # сервер, сравнивать с ним promoted_strategy удалённой ноды бессмысленно
+    # -- у неё свой собственный боевой конфиг). Живой случай 2026-08-26:
+    # геном был продвинут как strategy=44, автопромоутер с тех пор продвинул
+    # ЕЩЁ 10+ раз подряд (48,50,52...64), но старый геном как был "лучшим
+    # по avg_score", так и остался показываться с меткой "strategy=44" --
+    # promoted_strategy ставится ТОЛЬКО на вновь продвигаемый геном,
+    # никогда не снимается со старого при следующем продвижении, так что
+    # метка тихо устаревает и вводит в заблуждение, будто именно ЭТОТ
+    # геном сейчас боевой.
+    live_locked = {}
+    for profile, num in PROFILE_NUMBERS.items():
+        proto = PROFILE_PROTO.get(profile, "tls")
+        live_locked[profile] = _run_cli("get", str(num), proto)
+
     return templates.TemplateResponse(
         request, "overview.html",
-        {"user": user, "by_profile": by_profile, "runnable_profiles": set(runner.RUNNABLE_PROFILES)},
+        {
+            "user": user, "by_profile": by_profile,
+            "runnable_profiles": set(runner.RUNNABLE_PROFILES),
+            "local_env_name": config.LOCAL_ENVIRONMENT_NAME,
+            "live_locked": live_locked,
+        },
     )
 
 
