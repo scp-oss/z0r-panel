@@ -9,7 +9,7 @@
   <h2>{{ profile }}{% if profile not in runnable_profiles %} <span class="pill">ещё не в Zenith</span>{% endif %}</h2>
   {% if rows %}
   <table>
-    <tr><th>UUID</th><th>Нода</th><th>Провайдер</th><th>Геном</th><th>Источник</th><th>Прогонов</th><th>Успехов</th><th>avg_score</th></tr>
+    <tr><th>UUID</th><th>Нода</th><th>Провайдер</th><th>Геном</th><th>Источник</th><th>Прогонов (этот геном)</th><th>Успехов</th><th>avg_score</th></tr>
     {% for r in rows %}
     <tr>
       <td><code class="mono">{{ r.node_uuid[:8] if r.node_uuid else '—' }}</code></td>
