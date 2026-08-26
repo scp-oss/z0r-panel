@@ -31,15 +31,16 @@ import config
 
 # Подмножество z2r-профилей, которое Zenith'овский orchestrator/main.py
 # реально умеет запускать -- см. Zenith/orchestrator/genome.py::
-# PROFILE_FILTER_TYPE/PROFILE_FILTERS, там определены ТОЛЬКО эти 4 (ни
-# GV_TLS, ни fallback/dev-профили из main.py::PROFILE_NUMBERS там не
-# описаны -- main.py --profile GV_TLS не упадёт сразу, но результат ничем
-# не подкреплён реальным боевым фильтром песочницы). Живёт здесь, а не в
-# main.py -- используется и кнопкой "запустить подбор" (main.py), и
-# планировщиком периодического автозапуска (autorun.py), а main.py
-# импортировать из autorun.py означало бы цикл импорта (main.py уже
-# импортирует и runner, и autorun).
-RUNNABLE_PROFILES = ["YT_TLS", "RKN_TLS", "DS_TLS", "VOICE_UDP"]
+# PROFILE_FILTER_TYPE/PROFILE_FILTERS. GV_TLS добавлен 2026-08-26 (реальный
+# боевой фильтр + динамический yt-dlp-резолвинг тестового URL, см.
+# gv_resolver.py) -- остальные fallback/dev-профили из main.py::
+# PROFILE_NUMBERS (GAMES_UDP/FB_TLS/FB_HTTP/YT_QUIC_UDP) по-прежнему не
+# описаны в genome.py, --profile для них упадёт на choices= в argparse.
+# Живёт здесь, а не в main.py -- используется и кнопкой "запустить подбор"
+# (main.py), и планировщиком периодического автозапуска (autorun.py), а
+# main.py импортировать из autorun.py означало бы цикл импорта (main.py
+# уже импортирует и runner, и autorun).
+RUNNABLE_PROFILES = ["YT_TLS", "GV_TLS", "RKN_TLS", "DS_TLS", "VOICE_UDP"]
 
 # Фиксированный путь, НЕ по имени профиля/раунда -- один общий лок на "хоть
 # какой-то прогон main.py сейчас идёт" (тот же принцип "один прогон
