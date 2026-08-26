@@ -6,7 +6,8 @@
 
 {% for profile, rows in by_profile.items() %}
 <div class="card">
-  <h2>{{ profile }}</h2>
+  <h2>{{ profile }}{% if profile not in runnable_profiles %} <span class="pill">ещё не в Zenith</span>{% endif %}</h2>
+  {% if rows %}
   <table>
     <tr><th>Нода</th><th>Провайдер</th><th>Геном</th><th>Источник</th><th>Прогонов</th><th>Успехов</th><th>avg_score</th></tr>
     {% for r in rows %}
@@ -24,8 +25,11 @@
     </tr>
     {% endfor %}
   </table>
+  {% elif profile in runnable_profiles %}
+  <p class="muted">Пока нет ни одного прогона ни в одном окружении.</p>
+  {% else %}
+  <p class="muted">Этот профиль ещё не тестируется Zenith'ом (нет genome-модели/фильтра в orchestrator) — см. Zenith/README.md.</p>
+  {% endif %}
 </div>
-{% else %}
-<p class="muted">Пока нет ни одного прогона ни в одном окружении.</p>
 {% endfor %}
 {% endblock %}

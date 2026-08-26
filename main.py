@@ -199,10 +199,22 @@ def overview(request: Request, user: str = Depends(auth.require_login)):
         rows = db.overview_rows(conn)
     finally:
         conn.close()
-    by_profile = {}
+    # Все 9 профилей, в каноническом порядке (PROFILE_NUMBERS, тот же,
+    # что и везде в панели/z0r) -- не только те, для которых уже есть
+    # данные. Раньше секции шли в алфавитном порядке SQL-запроса
+    # (ORDER BY g.profile) и профили без данных вообще не показывались --
+    # непонятно было, добавлен ли профиль в Zenith или просто ещё не
+    # успел накопить прогоны. runner.RUNNABLE_PROFILES отличает эти два
+    # случая в шаблоне: профиль без genome-теста в Zenith вообще
+    # (YT_QUIC_UDP/GAMES_UDP/FB_TLS/FB_HTTP) против уже поддерживаемого,
+    # но пока без накопленных прогонов.
+    by_profile = {p: [] for p in PROFILE_NUMBERS}
     for row in rows:
         by_profile.setdefault(row["profile"], []).append(row)
-    return templates.TemplateResponse(request, "overview.html", {"user": user, "by_profile": by_profile})
+    return templates.TemplateResponse(
+        request, "overview.html",
+        {"user": user, "by_profile": by_profile, "runnable_profiles": set(runner.RUNNABLE_PROFILES)},
+    )
 
 
 @app.get("/nodes")
