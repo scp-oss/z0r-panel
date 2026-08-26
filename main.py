@@ -133,7 +133,7 @@ def _real_traffic_check(profile: str) -> str:
     set_strategy_cli.sh/systemctl restart (см. main.py докстринг про
     circular_locked без TTL), а не тому, реально ли работает трафик --
     та же дыра, что уже нашли и закрыли в Zenith auto_promoter.py.
-    Найдено при аудите перед деплоем на МТС 2026-08-17. Кнопка на
+    Найдено при аудите перед деплоем на Provider B 2026-08-17. Кнопка на
     /controls -- ТОЛЬКО показывает результат, ничего не откатывает сама
     (в отличие от автопродвижения, тут за рулём человек, он сам решает,
     что делать с результатом)."""
@@ -449,7 +449,7 @@ def controls_strategy_set(
         # которого явно предостерегает CLAUDE.md z2r_autobench ("Never
         # introduce a numbering gap... every tool silently wastes cycles on
         # the nonexistent numbers"). Найдено при аудите перед деплоем на
-        # МТС 2026-08-17. Сверяем с РЕАЛЬНЫМ текущим max для профиля --
+        # Provider B 2026-08-17. Сверяем с РЕАЛЬНЫМ текущим max для профиля --
         # если геном только что добавили руками в конфиг, max уже это
         # видит (config_profile_max_strategy читает файл заново каждый раз),
         # так что легитимные случаи это не блокирует.

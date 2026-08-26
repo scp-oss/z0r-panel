@@ -86,7 +86,7 @@ def require_node(request: Request) -> dict:
                 # обновляются), но громко логируем -- либо оператор
                 # реально сменил ZENITH_ENVIRONMENT_PROVIDER (тогда смена
                 # provider делается на /nodes руками), либо это стоит
-                # заметить (найдено при аудите перед деплоем на МТС
+                # заметить (найдено при аудите перед деплоем на Provider B
                 # 2026-08-17).
                 print(
                     f"self_report_node: нода '{node_name}' (id={env['id']}) прислала provider='{node_provider}', "

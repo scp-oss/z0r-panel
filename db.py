@@ -79,7 +79,7 @@ def self_report_node(conn, environment_id: int, name: str, provider: str) -> tup
     и тот же токен мог слать РАЗНЫЙ provider на разных вызовах, искусственно
     раздувая "проверено независимо на N провайдерах" (см.
     bootstrap_candidates/knowledge_family_rollup, оба COUNT(DISTINCT
-    provider)) -- найдено при аудите перед деплоем на МТС 2026-08-17.
+    provider)) -- найдено при аудите перед деплоем на Provider B 2026-08-17.
     Теперь provider фиксируется ОДИН раз (пока в БД NULL), дальше self-report
     его больше не трогает -- реальная смена провайдера ноды (переезд и
     т.п.) требует явного действия человека на /nodes, не молчаливого
@@ -364,9 +364,9 @@ def sync_push(conn, environment_id: int, genomes: list, scores: list) -> dict:
     for s in scores:
         # VALUES(col), не "... AS new ON DUPLICATE KEY UPDATE col = new.col"
         # -- та форма требует MySQL 8.0.19+, свежая ВМ нового провайдера
-        # (МТС и далее) вполне может оказаться на MariaDB или более старом
+        # (Provider B и далее) вполне может оказаться на MariaDB или более старом
         # MySQL, где это просто синтаксическая ошибка (найдено при аудите
-        # перед деплоем на МТС 2026-08-17). VALUES() в MySQL 8.0.20+
+        # перед деплоем на Provider B 2026-08-17). VALUES() в MySQL 8.0.20+
         # помечена deprecated (но работает, только warning) -- предпочтительнее
         # жёсткого отказа на несовместимой версии. Остальные upsert'ы в
         # этом файле (upsert_genome_score/upsert_operator_stat) её уже
