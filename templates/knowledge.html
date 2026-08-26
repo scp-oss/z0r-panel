@@ -11,6 +11,26 @@
   затем universal-паттерны с 2+ провайдерами, и только потом падает в
   обычный генератор+мутации.
 </p>
+<p class="muted">
+  Строки с <code>avg_score 0.0</code> — не мусор: это паттерны, которые
+  уже пробовали и которые ни разу не сработали. <code>bootstrap</code>
+  их никогда не рекомендует новым нодам (там жёсткий фильтр
+  «100% успехов», см. <code>db.bootstrap_candidates</code>), а сам
+  подбор (UCB) уже учитывает их провальную историю при выборе следующего
+  кандидата — но для человека, ищущего глазами, что реально работает,
+  они просто шум. Фильтр ниже прячет их из вида, не удаляя данные.
+</p>
+<form method="get" style="margin:12px 0; display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+  <select name="profile">
+    <option value="">Все профили</option>
+    {% for p in profiles %}<option value="{{ p }}" {% if p == profile %}selected{% endif %}>{{ p }}</option>{% endfor %}
+  </select>
+  <label>avg_score ≥ <input type="number" name="min_avg" value="{{ min_avg }}" step="0.01" min="0" max="1" style="width:80px"></label>
+  <label>провайдеров ≥ <input type="number" name="min_providers" value="{{ min_providers }}" min="1" style="width:60px"></label>
+  <button type="submit">Применить</button>
+  <a href="/knowledge">Сбросить</a>
+  <span class="muted">показано {{ filtered_count }} из {{ total_count }}</span>
+</form>
 <table>
   <tr><th>Профиль</th><th>Family</th><th>Fooling</th><th>TTL</th><th>Провайдеров</th><th>Геномов</th><th>Прогонов</th><th>avg_score</th></tr>
   {% for r in rollup %}
@@ -25,7 +45,10 @@
     <td>{{ r.avg_score }}</td>
   </tr>
   {% else %}
-  <tr><td colspan="8" class="muted">Пока данных нет — накопится по мере того, как ноды на разных провайдерах прогонят свои профили и засинкаются.</td></tr>
+  <tr><td colspan="8" class="muted">
+    {% if total_count %}Ничего не подходит под фильтр — попробуй ослабить его.
+    {% else %}Пока данных нет — накопится по мере того, как ноды на разных провайдерах прогонят свои профили и засинкаются.{% endif %}
+  </td></tr>
   {% endfor %}
 </table>
 {% endblock %}

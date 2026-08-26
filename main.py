@@ -367,13 +367,44 @@ def genome_promote_strategy(
 
 
 @app.get("/knowledge")
-def knowledge_page(request: Request, user: str = Depends(auth.require_login)):
+def knowledge_page(
+    request: Request,
+    user: str = Depends(auth.require_login),
+    profile: str = "",
+    min_avg: float = 0.0,
+    min_providers: int = 1,
+):
     conn = db.connect()
     try:
         rollup = db.knowledge_family_rollup(conn)
     finally:
         conn.close()
-    return templates.TemplateResponse(request, "knowledge.html", {"user": user, "rollup": rollup})
+    # Фильтруем в Python, не в SQL -- таблица небольшая (десятки строк,
+    # не тысячи), а запрос и так уже агрегирует всё разом; отдельный SQL
+    # с динамическим WHERE/HAVING ради этого не стоит усложнения.
+    # min_avg по умолчанию 0.0 -- показывает всё, включая полностью
+    # провальные паттерны (avg_score=0.0): это НЕ мусор, а полезный
+    # антирейтинг -- показывает, что уже опробовано и не работает, чтобы
+    # не гонять то же самое вручную повторно (алгоритм подбора это уже
+    # учитывает через pulls/total_reward в UCB, см. main.py::pick_operator_ucb
+    # и pick_parent_ucb в zenith/orchestrator) -- фильтры тут только чтобы
+    # человеку было проще увидеть рабочие паттерны, не подменяют собой
+    # то, что уже реально хранится в БД.
+    filtered = [
+        r for r in rollup
+        if (not profile or r["profile"] == profile)
+        and (r["avg_score"] or 0) >= min_avg
+        and r["distinct_providers"] >= min_providers
+    ]
+    return templates.TemplateResponse(
+        request, "knowledge.html",
+        {
+            "user": user, "rollup": filtered,
+            "profiles": runner.RUNNABLE_PROFILES,
+            "profile": profile, "min_avg": min_avg, "min_providers": min_providers,
+            "total_count": len(rollup), "filtered_count": len(filtered),
+        },
+    )
 
 
 def _controls_context(
