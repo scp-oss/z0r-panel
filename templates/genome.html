@@ -18,10 +18,11 @@
 <div class="card">
   <h3>Результаты по нодам</h3>
   <table>
-    <tr><th>Нода</th><th>Провайдер</th><th>Прогонов</th><th>Успехов</th><th>avg_score</th><th>Боевой сейчас</th><th>Продвинуто как strategy=</th></tr>
+    <tr><th>UUID</th><th>Нода</th><th>Провайдер</th><th>Прогонов</th><th>Успехов</th><th>avg_score</th><th>Боевой сейчас</th><th>Продвинуто как strategy=</th></tr>
     {% for s in scores %}
     <tr>
-      <td>{{ s.environment_name }}</td>
+      <td><code class="mono">{{ s.node_uuid[:8] if s.node_uuid else '—' }}</code></td>
+      <td><span class="blur">{{ s.environment_name }}</span></td>
       <td><span class="blur">{{ s.provider }}</span></td>
       <td>{{ s.pulls }}</td>
       <td>{{ s.successes }}</td>

@@ -267,6 +267,7 @@ def genome_scores_by_env(conn, genome_id: str):
     cur = conn.cursor(dictionary=True)
     cur.execute(
         """SELECT e.id AS environment_id, e.name AS environment_name, e.provider,
+                  e.node_uuid,
                   gs.pulls, gs.successes,
                   ROUND(gs.total_reward / NULLIF(gs.pulls, 0), 3) AS avg_score,
                   gs.is_production, gs.promoted_strategy
