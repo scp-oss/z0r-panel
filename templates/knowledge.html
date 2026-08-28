@@ -31,6 +31,7 @@
   <a href="/knowledge">Сбросить</a>
   <span class="muted">показано {{ filtered_count }} из {{ total_count }}</span>
 </form>
+<div class="table-wrap">
 <table>
   <tr><th>Профиль</th><th>Family</th><th>Fooling</th><th>TTL</th><th>Провайдеров</th><th>Геномов</th><th>Прогонов</th><th>avg_score</th></tr>
   {% for r in rollup %}
@@ -51,4 +52,5 @@
   </td></tr>
   {% endfor %}
 </table>
+</div>
 {% endblock %}

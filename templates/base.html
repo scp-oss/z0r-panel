@@ -12,7 +12,7 @@
     background: #14161a; color: #e6e6e6; font-size: 14px;
   }
   header {
-    display: flex; align-items: center; gap: 24px; padding: 10px 20px;
+    display: flex; align-items: center; flex-wrap: wrap; gap: 12px 24px; padding: 10px 20px;
     background: #1b1e24; border-bottom: 1px solid #2a2e37;
   }
   header a { color: #9fb4ff; text-decoration: none; font-weight: 600; }
@@ -23,6 +23,13 @@
   h1, h2, h3 { font-weight: 600; }
   table { border-collapse: collapse; width: 100%; margin: 12px 0 24px; }
   th, td { padding: 6px 10px; border-bottom: 1px solid #2a2e37; text-align: left; vertical-align: top; }
+  /* Таблицы на телефоне часто шире экрана (обзор, ноды, история мутаций) --
+     каждая обёрнута в .table-wrap (см. шаблоны), скроллится сама по себе
+     вместо того, чтобы раздвигать всю страницу вбок. table{display:block}
+     без обёртки — известный хак, но ломает выравнивание колонок в
+     некоторых браузерах, поэтому обёртка-div, а не он. */
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 12px 0 24px; }
+  .table-wrap table { margin: 0; }
   th { color: #9aa0ac; font-weight: 600; font-size: 12px; text-transform: uppercase; }
   tr:hover td { background: #1c1f26; }
   code, .mono { font-family: SFMono-Regular, Consolas, monospace; font-size: 12.5px; }
@@ -38,7 +45,7 @@
   form.inline { display: inline; }
   input, select, button {
     background: #22252c; border: 1px solid #363b46; color: #e6e6e6;
-    padding: 6px 10px; border-radius: 6px; font-size: 13px;
+    padding: 6px 10px; border-radius: 6px; font-size: 13px; max-width: 100%;
   }
   button { cursor: pointer; background: #2c3550; border-color: #3d4a72; }
   button:hover { background: #34406b; }
@@ -61,6 +68,14 @@
      классом "blur", ничего больше подключать не нужно. */
   .blur { filter: blur(5px); cursor: pointer; transition: filter .12s ease; }
   .blur.revealed { filter: none; }
+
+  @media (max-width: 640px) {
+    header { padding: 8px 12px; gap: 8px 16px; }
+    main { padding: 12px; }
+    .card { padding: 12px; }
+    th, td { padding: 5px 6px; font-size: 13px; }
+    code, .mono { font-size: 11.5px; }
+  }
 </style>
 </head>
 <body>

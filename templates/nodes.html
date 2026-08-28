@@ -64,6 +64,7 @@ PANEL_NODE_TOKEN={{ new_token }}</pre>
   </form>
 </div>
 
+<div class="table-wrap">
 <table>
   <tr><th>Провайдер</th><th>UUID</th><th>Имя</th><th>Тип</th><th>Геномов</th><th>Прогонов всего</th><th>Последний sync</th><th>Создана</th><th>Действия</th></tr>
   {% for e in environments %}
@@ -107,4 +108,5 @@ PANEL_NODE_TOKEN={{ new_token }}</pre>
   </tr>
   {% endfor %}
 </table>
+</div>
 {% endblock %}

@@ -17,6 +17,7 @@
 
 <div class="card">
   <h3>Результаты по нодам</h3>
+  <div class="table-wrap">
   <table>
     <tr><th>UUID</th><th>Нода</th><th>Провайдер</th><th>Прогонов</th><th>Успехов</th><th>avg_score</th><th>Боевой сейчас</th><th>Продвинуто как strategy=</th></tr>
     {% for s in scores %}
@@ -39,10 +40,12 @@
     </tr>
     {% endfor %}
   </table>
+  </div>
 </div>
 
 <div class="card">
   <h3>История мутаций (предки)</h3>
+  <div class="table-wrap">
   <table>
     <tr><th>Геном</th><th>Оператор</th><th>Поколение</th><th>Создан</th></tr>
     {% for a in ancestors %}
@@ -54,11 +57,13 @@
     </tr>
     {% endfor %}
   </table>
+  </div>
 </div>
 
 <div class="card">
   <h3>Потомки (что породил дальше)</h3>
   {% if children %}
+  <div class="table-wrap">
   <table>
     <tr><th>Геном</th><th>Оператор</th><th>Поколение</th><th>Создан</th></tr>
     {% for c in children %}
@@ -70,6 +75,7 @@
     </tr>
     {% endfor %}
   </table>
+  </div>
   {% else %}
   <p class="muted">Пока никто не унаследовал (либо ещё не мутировался, либо это лист текущего поколения).</p>
   {% endif %}

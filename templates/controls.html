@@ -12,6 +12,7 @@
   через <code>promote.py</code>.
 </p>
 
+<div class="table-wrap">
 <table>
   <tr><th>Профиль</th><th>№</th><th>proto</th><th>Залочена strategy=</th><th>max strategy=</th></tr>
   {% for row in profile_status %}
@@ -24,6 +25,7 @@
   </tr>
   {% endfor %}
 </table>
+</div>
 
 <div class="card">
   <h3>Ручное переключение стратегии</h3>
@@ -155,8 +157,8 @@
              "<td class=\"mono\">" + esc(r.args) + "</td><td>" + esc(r.domain) + "</td></tr>";
     }).join("");
     successesEl.innerHTML =
-      "<table><tr><th>Байт</th><th>Задержка</th><th>Раунд</th><th>Оператор</th><th>Геном</th><th>Домен</th></tr>" +
-      rows + "</table>";
+      "<div class=\"table-wrap\"><table><tr><th>Байт</th><th>Задержка</th><th>Раунд</th><th>Оператор</th><th>Геном</th><th>Домен</th></tr>" +
+      rows + "</table></div>";
   }
 
   function poll() {
@@ -241,6 +243,7 @@ pollServiceStatus("/controls/daemon/status", "daemon-status", "daemon-log");
   </p>
   {% if autoupdate_error %}<div class="flash error">{{ autoupdate_error }}</div>{% endif %}
   {% if autoupdate_ok %}<div class="flash">{{ autoupdate_ok }}</div>{% endif %}
+  <div class="table-wrap">
   <table>
     <tr><th>Проект</th><th>Статус</th><th>Последнее обновление</th><th></th></tr>
     {% for p in autoupdate_projects %}
@@ -258,6 +261,7 @@ pollServiceStatus("/controls/daemon/status", "daemon-status", "daemon-log");
     </tr>
     {% endfor %}
   </table>
+  </div>
   <form method="post" action="/controls/autoupdate/run" style="margin-top:12px">
     <button type="submit">Прогнать обновление сейчас (для всех включённых)</button>
   </form>
@@ -266,6 +270,7 @@ pollServiceStatus("/controls/daemon/status", "daemon-status", "daemon-log");
 {% for profile, rows in by_profile.items() %}
 <div class="card">
   <h3>{{ profile }} — лучшие геномы локально ({{ local_env_name }})</h3>
+  <div class="table-wrap">
   <table>
     <tr><th>Геном</th><th>Family</th><th>Прогонов</th><th>Успехов</th><th>avg_score</th></tr>
     {% for r in rows %}
@@ -278,6 +283,7 @@ pollServiceStatus("/controls/daemon/status", "daemon-status", "daemon-log");
     </tr>
     {% endfor %}
   </table>
+  </div>
 </div>
 {% endfor %}
 {% endblock %}
