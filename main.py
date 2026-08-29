@@ -575,6 +575,104 @@ def rkn_delete(request: Request, domain_id: int, user: str = Depends(auth.requir
     return RedirectResponse(url="/rkn", status_code=303)
 
 
+def _run_custom_domain_cli(*args) -> tuple[str | None, str | None, int]:
+    """(stdout, stderr, returncode) -- custom_domain_cli.sh печатает
+    ТАБЛИЦУ (list) в stdout, но ВСЮ диагностику add/remove (включая само
+    превью нового блока конфига) в stderr (см. его же докстринг) --
+    возвращаем оба потока отдельно и код возврата, вызывающий сам решает,
+    что показать. rc не сворачиваем в None-при-ошибке, как в _run_cli --
+    add без --yes нарочно возвращает 0 для успешного превью (ничего не
+    записано) и 1 для отказа (уже управляется другим профилем и т.п.),
+    разница видна вызывающему только по rc, не по exception."""
+    try:
+        out = subprocess.run(
+            ["sudo", "-n", "bash", config.CUSTOM_DOMAIN_CLI, *args],
+            capture_output=True, text=True, timeout=30,
+        )
+    except Exception as e:
+        return None, str(e), 1
+    return out.stdout, out.stderr, out.returncode
+
+
+def _custom_domains_context(user: str, message: str | None = None, message_is_error: bool = False, preview_domain: str | None = None) -> dict:
+    out, err, rc = _run_custom_domain_cli("list")
+    domains = []
+    list_error = None
+    if rc == 0:
+        lines = (out or "").splitlines()
+        if lines and not lines[0].startswith("(пусто"):
+            for line in lines[1:]:
+                parts = line.split()
+                if len(parts) >= 4:
+                    domains.append({"domain": parts[0], "profile": parts[1], "strategy": parts[2], "created": parts[3]})
+    else:
+        list_error = (err or "").strip() or f"custom_domain_cli.sh list завершился с кодом {rc}"
+    return {
+        "user": user, "domains": domains, "list_error": list_error,
+        "message": message, "message_is_error": message_is_error,
+        "preview_domain": preview_domain,
+    }
+
+
+@app.get("/custom-domains")
+def custom_domains_page(request: Request, user: str = Depends(auth.require_login)):
+    return templates.TemplateResponse(request, "custom_domains.html", _custom_domains_context(user))
+
+
+@app.post("/custom-domains/preview")
+def custom_domains_preview(
+    request: Request, user: str = Depends(auth.require_login),
+    domain: str = Form(...),
+):
+    """add БЕЗ --yes -- custom_domain_cli.sh либо печатает превью
+    будущего блока (rc=0, ничего не записано), либо отказывает с
+    предупреждением, если домен уже управляется другим профилем или уже
+    зарегистрирован (rc=1) -- в обоих случаях просто показываем stderr,
+    подтверждающая форма (POST /custom-domains/add) рисуется в шаблоне
+    только когда preview_domain задан (т.е. rc=0)."""
+    out, err, rc = _run_custom_domain_cli("add", domain)
+    text = (err or "").strip() or (out or "").strip()
+    return templates.TemplateResponse(
+        request, "custom_domains.html",
+        _custom_domains_context(user, message=text, message_is_error=(rc != 0), preview_domain=domain if rc == 0 else None),
+    )
+
+
+@app.post("/custom-domains/add")
+def custom_domains_add(
+    request: Request, user: str = Depends(auth.require_login),
+    domain: str = Form(...),
+):
+    """Реальная запись -- add --yes дописывает новый блок в
+    /opt/zapret2/config (backup перед записью, см. custom_domain_cli.sh)
+    и регистрирует домен. Restart zapret2 после этого -- РУЧНОЙ шаг (см.
+    напоминание в самом тексте ответа скрипта), панель его не делает."""
+    out, err, rc = _run_custom_domain_cli("add", domain, "--yes")
+    text = (err or "").strip() or (out or "").strip()
+    return templates.TemplateResponse(
+        request, "custom_domains.html",
+        _custom_domains_context(user, message=text, message_is_error=(rc != 0)),
+    )
+
+
+@app.post("/custom-domains/remove")
+def custom_domains_remove(
+    request: Request, user: str = Depends(auth.require_login),
+    domain: str = Form(...),
+):
+    """НЕ удаляет блок из конфига (см. custom_domain_cli.sh докстринг --
+    тот же класс риска, что и создание блока, только опаснее делать это
+    на живом файле, который уже читает работающий nfqws2) -- только
+    опустошает домен-специфичный hostlist, блок остаётся мёртвым и
+    безвредным."""
+    out, err, rc = _run_custom_domain_cli("remove", domain)
+    text = (err or "").strip() or (out or "").strip()
+    return templates.TemplateResponse(
+        request, "custom_domains.html",
+        _custom_domains_context(user, message=text, message_is_error=(rc != 0)),
+    )
+
+
 def _controls_context(
     user: str, run_error: str | None = None, daemon_error: str | None = None,
     strategy_error: str | None = None, strategy_ok: str | None = None,

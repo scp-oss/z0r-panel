@@ -129,3 +129,36 @@ convention.
   nothing on its own initiative. Seeing a winning strategy in the funnel
   results is the cue for a human to go set it manually via that section,
   not something this feature does automatically.
+
+## `/custom-domains` — exotic domains with their own independent strategy (since 2026-08-29)
+
+- Distinct from `/rkn`: that page manages domains that share ONE strategy
+  (the whole RKN_TLS profile's). This page is for domains where that
+  doesn't work — each gets its OWN brand-new numeric profile in
+  `/opt/zapret2/config`, entirely independent of every other domain's.
+  See `z2r_autobench/custom_domain_cli.sh`'s own docstring/CLAUDE.md for
+  why this needs a genuinely new config block (not just a strategy
+  switch) and how it's generated safely (clones the real, live RKN_TLS
+  block instead of guessing at nfqws2 syntax).
+- **This is the riskiest write this panel can trigger** — every other
+  mutating action here (`set_strategy_cli.sh set`, `rkn_list_cli.sh add`,
+  even the funnel) only ever flips a value or a line in an existing,
+  known-good structure. `/custom-domains/add` can append a brand-new
+  block to the live production config. The two-step UI (`preview` then a
+  separate, explicitly-confirmed `add`) mirrors the CLI's own `--yes`
+  gate exactly — the panel does not collapse this into one click, and the
+  preview's exact stderr text (the literal block that would be written,
+  or the refusal reason) is shown verbatim, not summarized, so a human
+  can actually read it before confirming.
+- `_run_custom_domain_cli()` is a third variant of the panel's
+  `sudo -n bash <script>` wrapper pattern (`_run_cli`, `_run_rkn_cli`,
+  now this) — needed because `custom_domain_cli.sh` puts its real content
+  on **stderr** for `add`/`remove` (`list`'s table is on stdout) and the
+  distinction between "successful preview" and "refused" is carried by
+  the exit code alone, not by which stream has content — both `_run_cli`
+  and `_run_rkn_cli`'s existing contracts (return `None` on any failure,
+  or fold everything into one stdout/error pair) don't fit that shape.
+- Removing a domain here never edits config structure (see the CLI's own
+  reasoning) — it only empties that domain's dedicated hostlist file, so
+  the panel's remove button is safe to expose without the same
+  preview/confirm ceremony as add.

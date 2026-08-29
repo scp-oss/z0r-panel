@@ -143,6 +143,11 @@ RKN_LIST_CLI = os.path.join(Z2R_AUTOBENCH_DIR, "rkn_list_cli.sh")
 # а не Zenith-геномы в изолированной песочнице.
 RANK_STRATEGIES_CLI = os.path.join(Z2R_AUTOBENCH_DIR, "rank_strategies.sh")
 
+# /custom-domains -- "экзотические" домены со СВОЕЙ независимой
+# стратегией каждый (в отличие от /rkn, где у ВСЕХ доменов под RKN_TLS
+# одна общая стратегия), см. custom_domain_cli.sh докстринг.
+CUSTOM_DOMAIN_CLI = os.path.join(Z2R_AUTOBENCH_DIR, "custom_domain_cli.sh")
+
 # Zenith orchestrator -- сосед по INSTALL_DIR (см. z2r_autobench/z0r::
 # ZENITH_DIR="$INSTALL_DIR/Zenith"). Нужен runner.py -- кнопке "запустить
 # подбор" в /controls, чтобы дёрнуть тот же main.py тем же venv, что при
