@@ -137,6 +137,12 @@ SET_STRATEGY_CLI = os.path.join(Z2R_AUTOBENCH_DIR, "set_strategy_cli.sh")
 # rkn_list_cli.sh докстринг для разделения официального/ручного списков.
 RKN_LIST_CLI = os.path.join(Z2R_AUTOBENCH_DIR, "rkn_list_cli.sh")
 
+# "Воронка" для кастомного домена на /controls (см. funnel_runner.py) --
+# rank_strategies.sh --domain, ОТДЕЛЬНЫЙ инструмент от runner.py/main.py
+# ниже: напрямую крутит БОЕВУЮ стратегию профиля через реальный трафик,
+# а не Zenith-геномы в изолированной песочнице.
+RANK_STRATEGIES_CLI = os.path.join(Z2R_AUTOBENCH_DIR, "rank_strategies.sh")
+
 # Zenith orchestrator -- сосед по INSTALL_DIR (см. z2r_autobench/z0r::
 # ZENITH_DIR="$INSTALL_DIR/Zenith"). Нужен runner.py -- кнопке "запустить
 # подбор" в /controls, чтобы дёрнуть тот же main.py тем же venv, что при

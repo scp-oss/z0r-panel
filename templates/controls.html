@@ -5,6 +5,7 @@
 
 <nav class="quicknav">
   <a href="#sec-run">Тест доменов</a>
+  <a href="#sec-funnel">Воронка для домена</a>
   <a href="#sec-status">Статус профилей</a>
   <a href="#sec-strategy">Переключение стратегии</a>
   {% if by_profile %}<a href="#sec-genomes">Геномы по профилям</a>{% endif %}
@@ -106,6 +107,163 @@
         progressEl.style.display = "none";
       }
       renderSuccesses(s.successes || []);
+      if (s.error_tail) {
+        errorEl.style.display = "block";
+        errorEl.textContent = s.error_tail;
+      } else {
+        errorEl.style.display = "none";
+      }
+    }).catch(function () {});
+  }
+  poll();
+  setInterval(poll, 3000);
+})();
+</script>
+
+<div class="card" id="sec-funnel">
+  <h3>Воронка для конкретного домена</h3>
+  <p class="muted">
+    Другой инструмент, чем «Тест доменов» выше — тот гоняет Zenith-геномы
+    в изолированной песочнице, ничего не меняя в проде до явного
+    продвижения. Здесь — <code>rank_strategies.sh --domain --funnel</code>,
+    который НАПРЯМУЮ переключает боевую стратегию профиля, куда
+    маршрутизируется указанный домен, и пробует её живым трафиком.
+    Профиль определяется автоматически по домену (по тем же хостлистам,
+    что и на странице <a href="/rkn">РКН список</a>) — какой профиль
+    указывать, гадать не нужно.
+    Механика — воронка в 3 прохода по умолчанию: проход 1 проверяет ВСЕ
+    стратегии профиля, дальше на каждый следующий проход идут только те,
+    кто хоть раз сработал в предыдущем — так дешевле по числу запросов,
+    чем честно перепроверять все стратегии на каждом проходе. Пока идёт
+    тест — стратегия профиля временно меняется для ВСЕХ доменов под этим
+    профилем, не только для тестируемого; по завершении возвращается
+    исходная (без флага <code>--apply</code>, который отсюда не
+    передаётся — закрепить победителя нужно вручную через «Ручное
+    переключение стратегии» ниже, увидев результат).
+  </p>
+  {% if funnel_error %}<div class="flash error">{{ funnel_error }}</div>{% endif %}
+  <form method="post" action="/controls/funnel" class="form-row">
+    <input type="text" name="domain" placeholder="домен, например example.com" style="width:220px" required>
+    <input type="number" name="passes" value="3" min="1" max="10" title="число проходов" style="width:70px">
+    <input type="number" name="settle" placeholder="settle сек (по умолч.)" title="пауза после переключения стратегии перед пробой" style="width:170px">
+    <input type="number" name="attempts" placeholder="попыток/стратегия (по умолч.)" title="попыток на стратегию за проход" style="width:200px">
+    <button type="submit">запустить воронку</button>
+  </form>
+  <form method="post" action="/controls/funnel/stop" style="margin-top:8px">
+    <button type="submit">остановить</button>
+  </form>
+  <p id="funnel-status" class="muted" style="margin-top:12px">—</p>
+  <div id="funnel-progress" class="progress-bar" style="display:none"><div id="funnel-progress-fill" class="progress-bar-fill"></div></div>
+  <div id="funnel-rounds"></div>
+  <div id="funnel-successes"></div>
+  <div id="funnel-ordered"></div>
+  <pre id="funnel-error" class="mono" style="max-height:300px; overflow:auto; background:#0f1115; border:1px solid #2a2e37; border-radius:6px; padding:10px; white-space:pre-wrap; display:none"></pre>
+</div>
+<script>
+(function () {
+  var statusEl = document.getElementById("funnel-status");
+  var progressEl = document.getElementById("funnel-progress");
+  var progressFillEl = document.getElementById("funnel-progress-fill");
+  var roundsEl = document.getElementById("funnel-rounds");
+  var successesEl = document.getElementById("funnel-successes");
+  var orderedEl = document.getElementById("funnel-ordered");
+  var errorEl = document.getElementById("funnel-error");
+
+  function esc(s) {
+    var d = document.createElement("div");
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  // Раунды воронки: сколько кандидатов зашло в проход и сколько выжило --
+  // именно это визуализирует "round1 -> только рабочие -> round2..." из
+  // живого запроса, не только финальный итог.
+  function renderRounds(rounds) {
+    if (!rounds.length) { roundsEl.innerHTML = ""; return; }
+    var rows = rounds.map(function (r) {
+      return "<tr><td>" + r.round + (r.rounds ? "/" + r.rounds : "") + "</td>" +
+             "<td>" + (r.candidates != null ? r.candidates : "—") + "</td>" +
+             "<td>" + r.survivors + "</td></tr>";
+    }).join("");
+    roundsEl.innerHTML =
+      "<table style=\"margin:10px 0\"><tr><th>Проход</th><th>Кандидатов</th><th>Выжило</th></tr>" + rows + "</table>";
+  }
+
+  function renderSuccesses(list) {
+    if (!list.length) { successesEl.innerHTML = ""; return; }
+    var rows = list.map(function (r) {
+      return "<tr><td>strategy=" + esc(r.strategy) + "</td><td>" + r.bytes.toLocaleString("ru-RU") + " bytes</td>" +
+             "<td>[" + r.round + "/" + r.rounds + "]</td></tr>";
+    }).join("");
+    successesEl.innerHTML =
+      "<p class=\"muted\" style=\"margin:10px 0 4px\">Сработавших кандидатов пока: " + list.length + "</p>" +
+      "<div class=\"table-wrap\"><table><tr><th>Стратегия</th><th>Байт</th><th>Проход</th></tr>" + rows + "</table></div>";
+  }
+
+  function renderOrdered(ordered) {
+    if (ordered === null) { orderedEl.innerHTML = ""; return; }
+    if (!ordered.length) {
+      orderedEl.innerHTML = "<div class=\"flash error\">Ни одна стратегия не пережила воронку до конца.</div>";
+      return;
+    }
+    orderedEl.innerHTML =
+      "<div class=\"flash\">Итог воронки, по надёжности: " +
+      ordered.map(function (s) { return "<code>strategy=" + esc(s) + "</code>"; }).join(" &gt; ") +
+      "</div>";
+  }
+
+  // pending_round -- заголовок прохода уже в логе, "проход N завершён..."
+  // ещё нет -- сам перебор кандидатов этого прохода идёт (каждый --
+  // переключение стратегии + settle-пауза + проба живым трафиком), может
+  // занимать заметное время. Та же идея разрыва, что pending_round у
+  // кнопки "запустить подбор" выше, см. её же комментарий.
+  function poll() {
+    fetch("/controls/funnel/status").then(function (r) { return r.json(); }).then(function (s) {
+      if (!s.domain) {
+        statusEl.textContent = "—"; roundsEl.innerHTML = ""; successesEl.innerHTML = ""; orderedEl.innerHTML = "";
+        errorEl.style.display = "none"; progressEl.style.display = "none";
+        return;
+      }
+      var profileTxt = s.profile_info ? " (" + s.profile_info.title + ", профиль " + s.profile_info.profile + ")" : "";
+      var label = s.domain + profileTxt;
+      var okCount = (s.successes || []).length;
+      var countTxt = okCount ? " · сработало: " + okCount : "";
+
+      if (s.running) {
+        if (s.pending_round) {
+          statusEl.textContent = "идёт: " + label + " — проход " + s.pending_round.round + "/" + s.pending_round.rounds +
+            " (кандидатов: " + s.pending_round.candidates + "), вычисление результатов…" + countTxt;
+          progressEl.style.display = "block";
+          progressFillEl.style.width = Math.round(100 * s.pending_round.round / s.pending_round.rounds) + "%";
+          progressFillEl.classList.add("pending");
+        } else if ((s.rounds || []).length) {
+          var lastR = s.rounds[s.rounds.length - 1];
+          statusEl.textContent = "идёт: " + label + " — проход " + lastR.round + (lastR.rounds ? "/" + lastR.rounds : "") +
+            " завершён (выжило " + lastR.survivors + "), готовится следующий…" + countTxt;
+          progressEl.style.display = "block";
+          progressFillEl.style.width = lastR.rounds ? Math.round(100 * lastR.round / lastR.rounds) + "%" : "100%";
+          progressFillEl.classList.remove("pending");
+        } else {
+          statusEl.textContent = "идёт: " + label + " — запуск…" + countTxt;
+          progressEl.style.display = "none";
+        }
+      } else if (s.exit_code !== null) {
+        var outcome = s.exit_code === 0 ? "успешно" : "ошибка, код " + s.exit_code;
+        statusEl.textContent = "завершено (" + outcome + "): " + label + countTxt + ", " + s.finished_at;
+        progressEl.style.display = "none";
+      } else {
+        statusEl.textContent = label;
+        progressEl.style.display = "none";
+      }
+      renderRounds(s.rounds || []);
+      renderSuccesses(s.successes || []);
+      // s.ordered остаётся null, пока в логе не появилась строка
+      // ORDERED_SUCCESS -- она печатается ТОЛЬКО после финальной
+      // агрегации по всем проходам, т.е. фактически в самом конце
+      // прогона (или сразу перед его завершением) -- не нужно отдельно
+      // проверять running/exit_code, null сам по себе означает "итога
+      // ещё нет".
+      renderOrdered(s.ordered);
       if (s.error_tail) {
         errorEl.style.display = "block";
         errorEl.textContent = s.error_tail;

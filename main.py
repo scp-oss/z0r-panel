@@ -43,6 +43,7 @@ import config
 import daemon_ctl
 import db
 import db_api
+import funnel_runner
 import runner
 import sync_api
 
@@ -579,6 +580,7 @@ def _controls_context(
     strategy_error: str | None = None, strategy_ok: str | None = None,
     autorun_error: str | None = None, promoter_error: str | None = None,
     autoupdate_error: str | None = None, autoupdate_ok: str | None = None,
+    funnel_error: str | None = None,
 ) -> dict:
     conn = db.connect()
     try:
@@ -616,6 +618,7 @@ def _controls_context(
         "autoupdate_timer_status": autoupdate_ctl.timer_status(),
         "autoupdate_error": autoupdate_error,
         "autoupdate_ok": autoupdate_ok,
+        "funnel_error": funnel_error,
     }
 
 
@@ -739,6 +742,34 @@ def controls_run_stop(request: Request, user: str = Depends(auth.require_login))
 @app.get("/controls/run/status")
 def controls_run_status(user: str = Depends(auth.require_login)):
     return runner.status()
+
+
+@app.post("/controls/funnel")
+def controls_funnel(
+    request: Request, user: str = Depends(auth.require_login),
+    domain: str = Form(...), passes: int = Form(3),
+    settle: int = Form(0), attempts: int = Form(0),
+):
+    """"Воронка" для конкретного домена -- ОТДЕЛЬНЫЙ инструмент от кнопки
+    "запустить подбор" выше (Zenith-геномы в песочнице): напрямую крутит
+    БОЕВУЮ стратегию профиля, определённого по домену, через реальный
+    трафик (см. funnel_runner.py и rank_strategies.sh --domain
+    докстринги). passes=3 по умолчанию -- то же значение, что у самого
+    rank_strategies.sh; settle/attempts=0 значит "не передавать флаг,
+    взять дефолт скрипта" (SETTLE_SECONDS/ATTEMPTS_PER_STRATEGY env)."""
+    error = funnel_runner.start(domain, max(1, min(passes, 10)), settle or None, attempts or None)
+    return templates.TemplateResponse(request, "controls.html", _controls_context(user, funnel_error=error))
+
+
+@app.post("/controls/funnel/stop")
+def controls_funnel_stop(request: Request, user: str = Depends(auth.require_login)):
+    error = funnel_runner.stop()
+    return templates.TemplateResponse(request, "controls.html", _controls_context(user, funnel_error=error))
+
+
+@app.get("/controls/funnel/status")
+def controls_funnel_status(user: str = Depends(auth.require_login)):
+    return funnel_runner.status()
 
 
 @app.post("/controls/daemon/start")

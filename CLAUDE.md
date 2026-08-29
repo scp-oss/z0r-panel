@@ -69,3 +69,63 @@ convention.
   unit, another periodic job), its POST handlers should render
   `automation.html`, not `controls.html` — that's now the "background
   services" page, `controls.html` is "things you actively do".
+
+## Funnel-testing a custom domain from `/controls` (since 2026-08-29)
+
+- Distinct third launcher, alongside `runner.py` (Zenith `main.py`,
+  sandbox-only genome search) and the systemd unit wrappers
+  (`daemon_ctl.py`/`autorun_ctl.py`/etc.): `funnel_runner.py` shells out
+  to `z2r_autobench/rank_strategies.sh --domain X --funnel --passes N`.
+  **This one is NOT sandbox-isolated** — `rank_strategies.sh` directly
+  flips the real production strategy for the profile that governs the
+  given domain and probes it with live traffic, then reverts at the end
+  (see its own docstring's "побочный эффект" warning, surfaced verbatim
+  in the new `#sec-funnel` card on `controls.html`). This is a genuinely
+  different risk class from `runner.py`'s button right above it on the
+  same page — same page, same "Стратегии" grouping, very different blast
+  radius; the card's copy spells this out so a user doesn't assume both
+  buttons are equally safe to mash.
+- Why a separate module instead of extending `runner.py`: `runner.py`'s
+  own docstring scopes it explicitly to "запускает `main.py` тем же
+  способом... " — different target script, different output format
+  entirely (`rank_strategies.sh` prints `--- Проход N/M (кандидатов: X)
+  ---` / `проход N завершён, выжило кандидатов: Y` / `ORDERED_SUCCESS: ...`,
+  nothing like `main.py`'s `[N/M] ... op=... -> ...` round format that
+  `runner.py::_ROUND_RE`/`_RESULT_RE` parse), and critically:
+  `rank_strategies.sh` already does its own locking
+  (`acquire_tune_lock`/`TUNE_LOCK_FILE`, shared with `autotune_daemon.sh`
+  and friends in z2r_autobench) so the launcher doesn't need `runner.py`'s
+  `sudo -n flock -n RUN_LOCK_FILE` wrapper trick at all — a second launch
+  attempt just gets rejected by the script itself with a clear message,
+  surfaced through `error_tail` like any other failure.
+- Domain→profile routing is **not duplicated here** — the panel only ever
+  passes the raw domain string through; `rank_strategies.sh --domain`
+  resolves which real numeric profile governs it and reports back via a
+  `Домен X -> профиль N (TITLE)` line that `funnel_runner._parse_log()`
+  picks up as `profile_info` for display. If this ever needs to be shown
+  BEFORE launching (e.g. a live preview as the user types a domain), that
+  lookup would need its own read-only endpoint calling into
+  `z2r_detect_governing_profile()` — doesn't exist yet, not needed for
+  the current one-shot "type domain, click, watch it run" flow.
+- `_parse_log()` tracks `pending_round` the same way `runner.py::_parse_log`
+  does for genome rounds — a `--- Проход N/M ---` header line with no
+  matching `проход N завершён...` line yet means the script is mid-pass
+  (each candidate in the pass = strategy switch + settle sleep + live
+  probe, can take a while) — surfaced in `controls.html` as "вычисление
+  результатов…" with the same striped/animated progress-bar treatment as
+  the genome-round pending state above it on the page.
+- Real-time successes: `rank_strategies.sh`'s funnel loop now also prints
+  a `strategy=N -> OK (bytes, проход P/PASSES)` stdout line the instant a
+  candidate survives a pass (see z2r_autobench's own CLAUDE.md for why —
+  added purely for this parser) — `funnel_runner.py` surfaces these as
+  they land, satisfying the live request "if one succeeds while the test
+  is still running, show it, and keep showing more as they appear" rather
+  than only revealing results once a whole pass (or the whole run)
+  finishes.
+- No `--apply` flag is ever passed from the panel — the funnel only
+  measures and reverts, same principle as the panel's other
+  strategy-mutating actions ("Ручное переключение стратегии" section
+  right below it on the same page): the panel picks nothing, applies
+  nothing on its own initiative. Seeing a winning strategy in the funnel
+  results is the cue for a human to go set it manually via that section,
+  not something this feature does automatically.
