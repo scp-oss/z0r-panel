@@ -2,6 +2,82 @@
 {% block title %}Zenith — статус профилей{% endblock %}
 {% block content %}
 <h1>Статус профилей (локальная нода: {{ local_env_name }})</h1>
+
+<div class="card">
+  <h3>Запустить подбор на локальной ноде ({{ local_env_name }})</h3>
+  <p class="muted">
+    Запускает <code>main.py</code> тем же способом, что и руками из
+    терминала — здесь только кнопка вместо SSH. Один прогон одновременно.
+    Тестирование конкретного домена — впиши его в поле «кастомный домен»
+    ниже (список известных доменов для профиля RKN_TLS — на отдельной
+    странице <a href="/rkn">РКН список</a>).
+  </p>
+  {% if run_error %}<div class="flash error">{{ run_error }}</div>{% endif %}
+  <form method="post" action="/controls/run">
+    <select name="profile">
+      {% for p in run_profiles %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
+    </select>
+    <input type="number" name="rounds" value="20" min="1" max="500" style="width:80px">
+    <input type="text" name="domain" placeholder="кастомный домен (host[/path]), необязательно" style="width:280px">
+    <button type="submit">запустить</button>
+  </form>
+  <form method="post" action="/controls/run/stop" style="margin-top:8px">
+    <button type="submit">остановить</button>
+  </form>
+  <p id="run-status" class="muted" style="margin-top:12px">—</p>
+  <div id="run-successes"></div>
+  <pre id="run-error" class="mono" style="max-height:300px; overflow:auto; background:#0f1115; border:1px solid #2a2e37; border-radius:6px; padding:10px; white-space:pre-wrap; display:none"></pre>
+</div>
+<script>
+(function () {
+  var statusEl = document.getElementById("run-status");
+  var successesEl = document.getElementById("run-successes");
+  var errorEl = document.getElementById("run-error");
+
+  function esc(s) {
+    var d = document.createElement("div");
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  function renderSuccesses(list) {
+    if (!list.length) { successesEl.innerHTML = ""; return; }
+    var rows = list.map(function (r) {
+      return "<tr><td>" + r.bytes.toLocaleString("ru-RU") + " bytes</td><td>" + r.latency_ms + "ms</td>" +
+             "<td>[" + r.round + "/" + r.rounds + "]</td><td>" + esc(r.op) + "</td>" +
+             "<td class=\"mono\">" + esc(r.args) + "</td><td>" + esc(r.domain) + "</td></tr>";
+    }).join("");
+    successesEl.innerHTML =
+      "<div class=\"table-wrap\"><table><tr><th>Байт</th><th>Задержка</th><th>Раунд</th><th>Оператор</th><th>Геном</th><th>Домен</th></tr>" +
+      rows + "</table></div>";
+  }
+
+  function poll() {
+    fetch("/controls/run/status").then(function (r) { return r.json(); }).then(function (s) {
+      if (!s.profile) { statusEl.textContent = "—"; successesEl.innerHTML = ""; errorEl.style.display = "none"; return; }
+      var label = s.profile + (s.domain ? " (" + s.domain + ")" : "") + ", " + s.rounds + " раундов";
+      var progress = s.last_round ? " — раунд " + s.last_round.round + "/" + s.last_round.rounds : "";
+      if (s.running) {
+        statusEl.textContent = "идёт: " + label + progress + " (с " + s.started_at + ")";
+      } else if (s.exit_code !== null) {
+        statusEl.textContent = "завершено: " + label + " (код " + s.exit_code + ", " + s.finished_at + ")";
+      } else {
+        statusEl.textContent = label;
+      }
+      renderSuccesses(s.successes || []);
+      if (s.error_tail) {
+        errorEl.style.display = "block";
+        errorEl.textContent = s.error_tail;
+      } else {
+        errorEl.style.display = "none";
+      }
+    }).catch(function () {});
+  }
+  poll();
+  setInterval(poll, 3000);
+})();
+</script>
+
 <p class="muted">
   <code>set_strategy_cli.sh get/max</code> — статус ниже read-only как и
   раньше. Ручное переключение (форма ниже) — то же самое действие, что
@@ -68,29 +144,6 @@
 </div>
 
 <div class="card">
-  <h3>Запустить подбор на локальной ноде ({{ local_env_name }})</h3>
-  <p class="muted">
-    Запускает <code>main.py</code> тем же способом, что и руками из
-    терминала — здесь только кнопка вместо SSH. Один прогон одновременно.
-  </p>
-  {% if run_error %}<div class="flash error">{{ run_error }}</div>{% endif %}
-  <form method="post" action="/controls/run">
-    <select name="profile">
-      {% for p in run_profiles %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
-    </select>
-    <input type="number" name="rounds" value="20" min="1" max="500" style="width:80px">
-    <input type="text" name="domain" placeholder="кастомный домен (host[/path]), необязательно" style="width:280px">
-    <button type="submit">запустить</button>
-  </form>
-  <form method="post" action="/controls/run/stop" style="margin-top:8px">
-    <button type="submit">остановить</button>
-  </form>
-  <p id="run-status" class="muted" style="margin-top:12px">—</p>
-  <div id="run-successes"></div>
-  <pre id="run-error" class="mono" style="max-height:300px; overflow:auto; background:#0f1115; border:1px solid #2a2e37; border-radius:6px; padding:10px; white-space:pre-wrap; display:none"></pre>
-</div>
-
-<div class="card">
   <h3>zenith-autorun — периодическая генерация кандидатов</h3>
   <p class="muted">
     Независимый systemd-юнит (<code>Zenith/zenith_autorun.sh</code>) — по
@@ -137,55 +190,6 @@
   <p id="zenith-promoter-status" class="muted" style="margin-top:12px">—</p>
   <pre id="zenith-promoter-log" class="mono" style="max-height:300px; overflow:auto; background:#0f1115; border:1px solid #2a2e37; border-radius:6px; padding:10px; white-space:pre-wrap"></pre>
 </div>
-<script>
-(function () {
-  var statusEl = document.getElementById("run-status");
-  var successesEl = document.getElementById("run-successes");
-  var errorEl = document.getElementById("run-error");
-
-  function esc(s) {
-    var d = document.createElement("div");
-    d.textContent = s;
-    return d.innerHTML;
-  }
-
-  function renderSuccesses(list) {
-    if (!list.length) { successesEl.innerHTML = ""; return; }
-    var rows = list.map(function (r) {
-      return "<tr><td>" + r.bytes.toLocaleString("ru-RU") + " bytes</td><td>" + r.latency_ms + "ms</td>" +
-             "<td>[" + r.round + "/" + r.rounds + "]</td><td>" + esc(r.op) + "</td>" +
-             "<td class=\"mono\">" + esc(r.args) + "</td><td>" + esc(r.domain) + "</td></tr>";
-    }).join("");
-    successesEl.innerHTML =
-      "<div class=\"table-wrap\"><table><tr><th>Байт</th><th>Задержка</th><th>Раунд</th><th>Оператор</th><th>Геном</th><th>Домен</th></tr>" +
-      rows + "</table></div>";
-  }
-
-  function poll() {
-    fetch("/controls/run/status").then(function (r) { return r.json(); }).then(function (s) {
-      if (!s.profile) { statusEl.textContent = "—"; successesEl.innerHTML = ""; errorEl.style.display = "none"; return; }
-      var label = s.profile + (s.domain ? " (" + s.domain + ")" : "") + ", " + s.rounds + " раундов";
-      var progress = s.last_round ? " — раунд " + s.last_round.round + "/" + s.last_round.rounds : "";
-      if (s.running) {
-        statusEl.textContent = "идёт: " + label + progress + " (с " + s.started_at + ")";
-      } else if (s.exit_code !== null) {
-        statusEl.textContent = "завершено: " + label + " (код " + s.exit_code + ", " + s.finished_at + ")";
-      } else {
-        statusEl.textContent = label;
-      }
-      renderSuccesses(s.successes || []);
-      if (s.error_tail) {
-        errorEl.style.display = "block";
-        errorEl.textContent = s.error_tail;
-      } else {
-        errorEl.style.display = "none";
-      }
-    }).catch(function () {});
-  }
-  poll();
-  setInterval(poll, 3000);
-})();
-</script>
 
 <div class="card">
   <h3>autotune-daemon</h3>

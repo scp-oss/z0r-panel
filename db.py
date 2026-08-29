@@ -502,6 +502,26 @@ def get_or_create_domain(conn, host: str, path: str, profile: str, min_bytes: in
     return {"id": domain_id, "host": host, "path": path, "min_bytes": min_bytes}
 
 
+def list_domains_for_profile(conn, profile: str):
+    """Для страницы /rkn (и любого другого будущего "список доменов
+    профиля" в панели) -- в отличие от get_domains_for_profile() выше
+    (используется ТОЛЬКО тестовым прогоном, который карантинные домены
+    сознательно пропускает), тут нужны ВСЕ строки, включая
+    закарантиненные -- оператор должен видеть их тоже, чтобы понимать,
+    почему домен не участвует в тестах, а не только те, что прямо сейчас
+    "живые"."""
+    cur = conn.cursor(dictionary=True)
+    cur.execute(
+        """SELECT id, host, path, min_bytes, last_verified_at, last_verified_ok,
+                  consecutive_fail, quarantined_until, added_at
+           FROM domain_pool
+           WHERE profile_hint=%s
+           ORDER BY added_at DESC""",
+        (profile,),
+    )
+    return cur.fetchall()
+
+
 def insert_genome(conn, g: dict) -> str:
     cur = conn.cursor()
     cur.execute(

@@ -441,6 +441,39 @@ def knowledge_page(
     )
 
 
+@app.get("/rkn")
+def rkn_page(request: Request, user: str = Depends(auth.require_login), error: str = ""):
+    conn = db.connect()
+    try:
+        domains = db.list_domains_for_profile(conn, "RKN_TLS")
+    finally:
+        conn.close()
+    return templates.TemplateResponse(
+        request, "rkn.html", {"user": user, "domains": domains, "error": error},
+    )
+
+
+@app.post("/rkn/add")
+def rkn_add(
+    request: Request, user: str = Depends(auth.require_login),
+    domain: str = Form(...), min_bytes: int = Form(65536),
+):
+    # Тот же разбор host[/path], что runner.py передаёт в main.py
+    # --domain -- см. Zenith/orchestrator/main.py::run(). Пустой host
+    # (только "/path" или пустая строка) ловим тут явно -- иначе
+    # get_or_create_domain тихо создаст мусорную строку с host=''.
+    host, _, path = domain.strip().partition("/")
+    if not host:
+        return RedirectResponse(url="/rkn?error=Пустой+домен", status_code=303)
+    conn = db.connect()
+    try:
+        db.get_or_create_domain(conn, host, "/" + path if path else "/", "RKN_TLS", max(1, min_bytes))
+        conn.commit()
+    finally:
+        conn.close()
+    return RedirectResponse(url="/rkn", status_code=303)
+
+
 def _controls_context(
     user: str, run_error: str | None = None, daemon_error: str | None = None,
     strategy_error: str | None = None, strategy_ok: str | None = None,
