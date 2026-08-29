@@ -522,6 +522,23 @@ def list_domains_for_profile(conn, profile: str):
     return cur.fetchall()
 
 
+def delete_domain(conn, domain_id: int) -> bool:
+    """Удаляет строку из ТЕСТОВОГО domain_pool (см. /rkn) -- никак не
+    касается боевого хостлиста на сервере (rkn_list_cli.sh, отдельный
+    механизм). schema.sql объявляет experiments.domain_id/
+    ban_events.domain_id через колоночный REFERENCES domain_pool(id) без
+    отдельного FOREIGN KEY -- MySQL такой синтаксис парсит, но НЕ
+    применяет как реальное ограничение (см. документацию MySQL
+    "inline REFERENCES specifications are parsed but ignored"), так что
+    удаление не упадёт с ошибкой FK даже если у домена есть старые
+    experiments -- те строки просто осиротеют (сама история экспериментов
+    остаётся в БД, только без домена, к которому она относится). Тот же
+    компромисс уже принят для force_delete_environment выше."""
+    cur = conn.cursor()
+    cur.execute("DELETE FROM domain_pool WHERE id=%s", (domain_id,))
+    return cur.rowcount > 0
+
+
 def insert_genome(conn, g: dict) -> str:
     cur = conn.cursor()
     cur.execute(

@@ -66,7 +66,7 @@
 
 <div class="table-wrap">
 <table>
-  <tr><th>Host</th><th>Path</th><th>min_bytes</th><th>Последняя проверка</th><th>Подряд неудач</th><th>Карантин до</th><th>Добавлен</th></tr>
+  <tr><th>Host</th><th>Path</th><th>min_bytes</th><th>Последняя проверка</th><th>Подряд неудач</th><th>Карантин до</th><th>Добавлен</th><th></th></tr>
   {% for d in domains %}
   <tr {% if d.quarantined_until %}style="opacity:0.5"{% endif %}>
     <td>{{ d.host }}</td>
@@ -81,9 +81,15 @@
     <td>{{ d.consecutive_fail }}</td>
     <td>{% if d.quarantined_until %}<span class="pill warn">{{ d.quarantined_until }}</span>{% else %}—{% endif %}</td>
     <td>{{ d.added_at }}</td>
+    <td>
+      <form method="post" action="/rkn/{{ d.id }}/delete" class="inline"
+            onsubmit="return confirm('Удалить тестовый домен ' + {{ d.host | tojson }} + ' из domain_pool? Не влияет на боевой список выше, необратимо.');">
+        <button type="submit">удалить</button>
+      </form>
+    </td>
   </tr>
   {% else %}
-  <tr><td colspan="7" class="muted">Пока пусто — добавь домен через форму выше.</td></tr>
+  <tr><td colspan="8" class="muted">Пока пусто — добавь домен через форму выше.</td></tr>
   {% endfor %}
 </table>
 </div>

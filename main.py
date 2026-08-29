@@ -536,6 +536,21 @@ def rkn_add_production(
     return RedirectResponse(url="/rkn", status_code=303)
 
 
+@app.post("/rkn/{domain_id}/delete")
+def rkn_delete(request: Request, domain_id: int, user: str = Depends(auth.require_login)):
+    # ТОЛЬКО тестовый domain_pool (см. db.delete_domain) -- удаление из
+    # боевого списка (TCP_RKN_list.txt/TCP_Custom.txt на сервере) тут
+    # намеренно не реализовано, страница его вообще не показывает как
+    # удаляемое -- в отличие от тестового списка, изменение боевого
+    # затрагивает реальный трафик, отдельный, более осторожный шаг.
+    conn = db.connect()
+    try:
+        db.delete_domain(conn, domain_id)
+    finally:
+        conn.close()
+    return RedirectResponse(url="/rkn", status_code=303)
+
+
 def _controls_context(
     user: str, run_error: str | None = None, daemon_error: str | None = None,
     strategy_error: str | None = None, strategy_ok: str | None = None,
