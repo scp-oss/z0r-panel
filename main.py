@@ -471,21 +471,26 @@ def rkn_page(
         conn.close()
 
     # Боевой список (TCP_RKN_list.txt/TCP_Custom.txt на самом сервере,
-    # НЕ БД) -- см. rkn_list_cli.sh докстринг. Читаем его тут же, при
-    # каждом заходе на страницу -- список короткий (не тысячи строк за
-    # один HTTP-запрос ожидать не стоит, но текущий масштаб это не
-    # проблема), отдельного кеша не заводим.
+    # НЕ БД) -- см. rkn_list_cli.sh докстринг. Читаем его при КАЖДОМ
+    # заходе на страницу, БЕЗУСЛОВНО -- даже если production_error уже
+    # пришёл через query от неудачного add/remove (см. эти роуты выше).
+    # Раньше это было "if not production_error: читать список" -- баг:
+    # после любой ошибки формы таблица молча показывала пустой список
+    # вместо реального (в TCP_RKN_list.txt может быть тысяча строк),
+    # выглядело так, будто весь список пропал. Ошибка чтения списка
+    # (genuinely не удалось выполнить list) важнее ошибки формы --
+    # перезаписывает её, а не наоборот, иначе человек увидит "Пустой
+    # домен" и пустую таблицу без объяснения, почему она пустая.
     production_list = []
-    if not production_error:
-        out, err = _run_rkn_cli("list")
-        if err:
-            production_error = err
-        else:
-            for line in (out or "").splitlines():
-                if not line.strip():
-                    continue
-                source, _, host = line.partition("\t")
-                production_list.append({"source": source, "host": host})
+    out, list_err = _run_rkn_cli("list")
+    if list_err:
+        production_error = list_err
+    else:
+        for line in (out or "").splitlines():
+            if not line.strip():
+                continue
+            source, _, host = line.partition("\t")
+            production_list.append({"source": source, "host": host})
 
     return templates.TemplateResponse(
         request, "rkn.html",
@@ -536,13 +541,31 @@ def rkn_add_production(
     return RedirectResponse(url="/rkn", status_code=303)
 
 
+@app.post("/rkn/remove-production")
+def rkn_remove_production(
+    request: Request, user: str = Depends(auth.require_login),
+    domain: str = Form(...),
+):
+    # ТОЛЬКО TCP_Custom.txt -- rkn_list_cli.sh remove само отказывает,
+    # если домен только в официальном TCP_RKN_list.txt (см. его же
+    # докстринг), страница со своей стороны вообще не рисует кнопку
+    # удаления для строк с source="официальный" (см. rkn.html), это
+    # просто вторая линия защиты на случай прямого POST мимо формы.
+    domain = domain.strip()
+    if not domain:
+        return RedirectResponse(url="/rkn?production_error=Пустой+домен", status_code=303)
+    _, err = _run_rkn_cli("remove", domain)
+    if err:
+        return RedirectResponse(url=f"/rkn?production_error={quote(err)}", status_code=303)
+    return RedirectResponse(url="/rkn", status_code=303)
+
+
 @app.post("/rkn/{domain_id}/delete")
 def rkn_delete(request: Request, domain_id: int, user: str = Depends(auth.require_login)):
     # ТОЛЬКО тестовый domain_pool (см. db.delete_domain) -- удаление из
-    # боевого списка (TCP_RKN_list.txt/TCP_Custom.txt на сервере) тут
-    # намеренно не реализовано, страница его вообще не показывает как
-    # удаляемое -- в отличие от тестового списка, изменение боевого
-    # затрагивает реальный трафик, отдельный, более осторожный шаг.
+    # боевого списка использует отдельный маршрут выше (/rkn/remove-
+    # production, по имени домена, не по id -- у боевого списка нет
+    # своего id, это просто строки текстового файла на сервере).
     conn = db.connect()
     try:
         db.delete_domain(conn, domain_id)
@@ -599,6 +622,16 @@ def _controls_context(
 @app.get("/controls")
 def controls_page(request: Request, user: str = Depends(auth.require_login)):
     return templates.TemplateResponse(request, "controls.html", _controls_context(user))
+
+
+@app.get("/controls/automation")
+def automation_page(request: Request, user: str = Depends(auth.require_login)):
+    # Раньше жило на одной странице с /controls (7+ карточек подряд --
+    # неудобно листать). Тот же _controls_context() (вся логика/данные
+    # без изменений), просто другой шаблон, показывающий только
+    # автономные systemd-юниты (autorun/promoter/daemon/autoupdate), не
+    # ручные "Стратегии"-действия выше по смыслу.
+    return templates.TemplateResponse(request, "automation.html", _controls_context(user))
 
 
 @app.post("/controls/strategy/set")
@@ -711,13 +744,13 @@ def controls_run_status(user: str = Depends(auth.require_login)):
 @app.post("/controls/daemon/start")
 def controls_daemon_start(request: Request, user: str = Depends(auth.require_login)):
     error = daemon_ctl.autotune_daemon.start()
-    return templates.TemplateResponse(request, "controls.html", _controls_context(user, daemon_error=error))
+    return templates.TemplateResponse(request, "automation.html", _controls_context(user, daemon_error=error))
 
 
 @app.post("/controls/daemon/stop")
 def controls_daemon_stop(request: Request, user: str = Depends(auth.require_login)):
     error = daemon_ctl.autotune_daemon.stop()
-    return templates.TemplateResponse(request, "controls.html", _controls_context(user, daemon_error=error))
+    return templates.TemplateResponse(request, "automation.html", _controls_context(user, daemon_error=error))
 
 
 @app.get("/controls/daemon/status")
@@ -728,13 +761,13 @@ def controls_daemon_status(user: str = Depends(auth.require_login)):
 @app.post("/controls/zenith-autorun/start")
 def controls_zenith_autorun_start(request: Request, user: str = Depends(auth.require_login)):
     error = daemon_ctl.zenith_autorun.start()
-    return templates.TemplateResponse(request, "controls.html", _controls_context(user, autorun_error=error))
+    return templates.TemplateResponse(request, "automation.html", _controls_context(user, autorun_error=error))
 
 
 @app.post("/controls/zenith-autorun/stop")
 def controls_zenith_autorun_stop(request: Request, user: str = Depends(auth.require_login)):
     error = daemon_ctl.zenith_autorun.stop()
-    return templates.TemplateResponse(request, "controls.html", _controls_context(user, autorun_error=error))
+    return templates.TemplateResponse(request, "automation.html", _controls_context(user, autorun_error=error))
 
 
 @app.get("/controls/zenith-autorun/status")
@@ -745,13 +778,13 @@ def controls_zenith_autorun_status(user: str = Depends(auth.require_login)):
 @app.post("/controls/zenith-promoter/start")
 def controls_zenith_promoter_start(request: Request, user: str = Depends(auth.require_login)):
     error = daemon_ctl.zenith_promoter.start()
-    return templates.TemplateResponse(request, "controls.html", _controls_context(user, promoter_error=error))
+    return templates.TemplateResponse(request, "automation.html", _controls_context(user, promoter_error=error))
 
 
 @app.post("/controls/zenith-promoter/stop")
 def controls_zenith_promoter_stop(request: Request, user: str = Depends(auth.require_login)):
     error = daemon_ctl.zenith_promoter.stop()
-    return templates.TemplateResponse(request, "controls.html", _controls_context(user, promoter_error=error))
+    return templates.TemplateResponse(request, "automation.html", _controls_context(user, promoter_error=error))
 
 
 @app.get("/controls/zenith-promoter/status")
@@ -775,7 +808,7 @@ def controls_autoupdate_toggle(
         label = autoupdate_ctl.PROJECT_LABELS.get(project, project)
         ok = f"{label}: автообновление {'включено' if enabled == '1' else 'выключено'}."
     return templates.TemplateResponse(
-        request, "controls.html", _controls_context(user, autoupdate_error=error, autoupdate_ok=ok),
+        request, "automation.html", _controls_context(user, autoupdate_error=error, autoupdate_ok=ok),
     )
 
 
@@ -784,7 +817,7 @@ def controls_autoupdate_run(request: Request, user: str = Depends(auth.require_l
     error = autoupdate_ctl.run_now()
     ok = None if error else "Обновление запущено -- результат через несколько секунд, см. лог ниже (обнови страницу)."
     return templates.TemplateResponse(
-        request, "controls.html", _controls_context(user, autoupdate_error=error, autoupdate_ok=ok),
+        request, "automation.html", _controls_context(user, autoupdate_error=error, autoupdate_ok=ok),
     )
 
 

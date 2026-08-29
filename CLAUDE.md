@@ -38,3 +38,34 @@ convention.
   infrastructure, not panel-owned state (see "Как это устроено" in
   README.md — the panel is just an ordinary client of the same DB the
   local orchestrator already writes to, not a separate store).
+
+## `/controls` split into two pages (since 2026-08-29) — same actions, different presentation
+
+- UX pass: the single `/controls` page had grown to 7+ stacked cards
+  (profile status, manual strategy switch, domain test runner, zenith-
+  autorun, zenith-promoter, autotune-daemon, autoupdate, per-profile
+  genomes) — no way to jump between them but scrolling. Split into
+  `/controls` ("Стратегии": run/test-domain card, profile status table,
+  manual strategy switch, per-profile genomes) and a new `/controls/automation`
+  ("Автоматизация": zenith-autorun/zenith-promoter/autotune-daemon/
+  autoupdate — the "set it and forget it" background units).
+- **Zero backend logic changed to do this.** `_controls_context()` still
+  builds the exact same full context dict on every call, for both routes
+  — the split is purely about which template (`controls.html` vs the new
+  `automation.html`) renders it. Every POST action handler (`/controls/
+  daemon/start`, `/controls/zenith-autorun/*`, `/controls/zenith-promoter/*`,
+  `/controls/autoupdate/*`) now re-renders `automation.html` instead of
+  `controls.html` after doing its thing — same subprocess/systemctl/sudo
+  calls as before, just a different template picked afterward. The GET
+  JSON status endpoints (`/controls/run/status`, `/controls/daemon/status`,
+  etc.) are unaffected either way — they don't render a template, and
+  both pages' polling JS just fetches the same URLs regardless of which
+  page it's running on.
+- Sidebar nav (see `base.html`) reflects this: "Стратегии" is active only
+  on exact path `/controls` (not a prefix match), "Автоматизация" only on
+  `/controls/automation` — needed exact vs. prefix distinction so the two
+  don't both light up when the other is showing.
+- If a new automation-style toggle gets added later (another systemd
+  unit, another periodic job), its POST handlers should render
+  `automation.html`, not `controls.html` — that's now the "background
+  services" page, `controls.html` is "things you actively do".

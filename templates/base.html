@@ -11,15 +11,33 @@
     margin: 0; font-family: -apple-system, Segoe UI, Roboto, sans-serif;
     background: #14161a; color: #e6e6e6; font-size: 14px;
   }
-  header {
-    display: flex; align-items: center; flex-wrap: wrap; gap: 12px 24px; padding: 10px 20px;
-    background: #1b1e24; border-bottom: 1px solid #2a2e37;
+  /* Раньше — верхняя горизонтальная шапка со всеми ссылками в ряд.
+     С ростом числа разделов (Дашборд/Ноды/База знаний/РКН/Управление
+     из двух вкладок) это стало тесно и не давало сгруппировать
+     "Управление" отдельно от остальных разделов. Левый сайдбар вместо
+     этого: секции группируются заголовками, активный пункт виден сразу,
+     на мобильном (см. media query внизу) сворачивается обратно в
+     горизонтальную полосу сверху. */
+  .layout { display: flex; min-height: 100vh; }
+  .sidebar {
+    width: 220px; flex-shrink: 0; background: #1b1e24; border-right: 1px solid #2a2e37;
+    padding: 18px 12px; display: flex; flex-direction: column; gap: 1px;
   }
-  header a { color: #9fb4ff; text-decoration: none; font-weight: 600; }
-  header a:hover { text-decoration: underline; }
-  header .spacer { flex: 1; }
-  header .user { color: #888; }
-  main { padding: 20px; max-width: 1200px; margin: 0 auto; }
+  .sidebar .brand { font-weight: 700; font-size: 17px; padding: 4px 10px 16px; color: #e6e6e6; }
+  .sidebar a {
+    color: #9fb4ff; text-decoration: none; padding: 8px 10px; border-radius: 6px; font-weight: 500;
+  }
+  .sidebar a:hover { background: #22252c; text-decoration: none; }
+  .sidebar a.active { background: #2c3550; color: #fff; }
+  .sidebar .group-label {
+    font-size: 11px; text-transform: uppercase; color: #666; letter-spacing: .04em;
+    margin: 16px 0 2px; padding: 0 10px;
+  }
+  .sidebar .spacer { flex: 1; }
+  .sidebar .user { color: #888; font-size: 12px; padding: 12px 10px 4px; border-top: 1px solid #2a2e37; margin-top: 8px; }
+  .sidebar .user a { padding: 0; display: inline; font-weight: 400; }
+  .content-area { flex: 1; min-width: 0; }
+  main { padding: 24px 28px; max-width: 1100px; margin: 0 auto; }
   h1, h2, h3 { font-weight: 600; }
   table { border-collapse: collapse; width: 100%; margin: 12px 0 24px; }
   th, td { padding: 6px 10px; border-bottom: 1px solid #2a2e37; text-align: left; vertical-align: top; }
@@ -30,6 +48,12 @@
      некоторых браузерах, поэтому обёртка-div, а не он. */
   .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 12px 0 24px; }
   .table-wrap table { margin: 0; }
+  /* Длинные списки (боевой РКН-хостлист — сотни/тысячи строк) раньше
+     растягивали всю страницу вниз, чтобы дойти до следующего блока
+     приходилось пролистывать весь список. Фиксированная высота + свой
+     скролл + "прилипающий" заголовок колонок. */
+  .table-wrap.scroll-box { max-height: 420px; overflow-y: auto; }
+  .table-wrap.scroll-box th { position: sticky; top: 0; background: #1b1e24; z-index: 1; }
   th { color: #9aa0ac; font-weight: 600; font-size: 12px; text-transform: uppercase; }
   tr:hover td { background: #1c1f26; }
   code, .mono { font-family: SFMono-Regular, Consolas, monospace; font-size: 12.5px; }
@@ -64,9 +88,9 @@
      видимая тонкая рамка-предупреждение сразу отличает её от обычных
      read-only/тестовых карточек, до того как читать текст внутри. */
   .card.danger-zone { border-color: #5c3324; }
-  /* Быстрая внутристраничная навигация -- сейчас используется только на
-     /controls (самая длинная страница панели, 7+ независимых карточек
-     подряд без способа перепрыгнуть между ними кроме скролла). */
+  /* Быстрая внутристраничная навигация -- используется на длинных
+     страницах с несколькими независимыми карточками подряд (сейчас —
+     "Стратегии"), чтобы не листать вручную. */
   .quicknav {
     display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 4px 0 20px;
     padding: 10px 14px; background: #1b1e24; border: 1px solid #2a2e37;
@@ -103,12 +127,24 @@
      (стек из <p> в столбик) и одиночные кнопки-формы полагаются на
      обычную блочную раскладку, ломать их flex'ом не нужно. */
   form.form-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-  /* Активная страница в шапке -- раньше все 5 ссылок выглядели одинаково
-     независимо от того, где сейчас находится пользователь. */
-  header a.active { color: #e6e6e6; border-bottom: 2px solid #9fb4ff; padding-bottom: 2px; }
 
+  /* Сайдбар сворачивается в горизонтальную полосу сверху -- та же идея,
+     что была у прежней шапки, просто теперь это fallback для узких
+     экранов, а не основной вид. */
+  @media (max-width: 860px) {
+    .layout { flex-direction: column; }
+    .sidebar {
+      width: 100%; flex-direction: row; align-items: center; overflow-x: auto;
+      white-space: nowrap; border-right: none; border-bottom: 1px solid #2a2e37;
+      padding: 8px 12px; gap: 4px;
+    }
+    .sidebar .brand { display: none; }
+    .sidebar .group-label { display: none; }
+    .sidebar .spacer { display: none; }
+    .sidebar .user { border-top: none; margin-top: 0; padding: 8px 10px; white-space: nowrap; }
+    main { padding: 16px; }
+  }
   @media (max-width: 640px) {
-    header { padding: 8px 12px; gap: 8px 16px; }
     main { padding: 12px; }
     .card { padding: 12px; }
     th, td { padding: 5px 6px; font-size: 13px; }
@@ -117,18 +153,25 @@
 </style>
 </head>
 <body>
-<header>
-  <a href="/" {% if request.url.path == '/' %}class="active"{% endif %}>Zenith</a>
-  <a href="/nodes" {% if request.url.path.startswith('/nodes') %}class="active"{% endif %}>Ноды</a>
-  <a href="/knowledge" {% if request.url.path.startswith('/knowledge') %}class="active"{% endif %}>База знаний</a>
-  <a href="/rkn" {% if request.url.path.startswith('/rkn') %}class="active"{% endif %}>РКН список</a>
-  <a href="/controls" {% if request.url.path.startswith('/controls') %}class="active"{% endif %}>Статус профилей</a>
-  <div class="spacer"></div>
-  {% if user %}<span class="user">{{ user }} · <a href="/logout">выйти</a></span>{% endif %}
-</header>
-<main>
-{% block content %}{% endblock %}
-</main>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">Zenith</div>
+    <a href="/" {% if request.url.path == '/' %}class="active"{% endif %}>Дашборд</a>
+    <a href="/nodes" {% if request.url.path.startswith('/nodes') %}class="active"{% endif %}>Ноды</a>
+    <a href="/knowledge" {% if request.url.path.startswith('/knowledge') %}class="active"{% endif %}>База знаний</a>
+    <a href="/rkn" {% if request.url.path.startswith('/rkn') %}class="active"{% endif %}>РКН список</a>
+    <div class="group-label">Управление</div>
+    <a href="/controls" {% if request.url.path == '/controls' %}class="active"{% endif %}>Стратегии</a>
+    <a href="/controls/automation" {% if request.url.path.startswith('/controls/automation') %}class="active"{% endif %}>Автоматизация</a>
+    <div class="spacer"></div>
+    {% if user %}<div class="user">{{ user }} · <a href="/logout">выйти</a></div>{% endif %}
+  </aside>
+  <div class="content-area">
+    <main>
+    {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
 <script>
   document.addEventListener("click", function (e) {
     var el = e.target.closest(".blur");

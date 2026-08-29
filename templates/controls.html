@@ -1,16 +1,12 @@
 {% extends "base.html" %}
-{% block title %}Zenith — статус профилей{% endblock %}
+{% block title %}Zenith — стратегии{% endblock %}
 {% block content %}
-<h1>Статус профилей (локальная нода: {{ local_env_name }})</h1>
+<h1>Стратегии (локальная нода: {{ local_env_name }})</h1>
 
 <nav class="quicknav">
   <a href="#sec-run">Тест доменов</a>
   <a href="#sec-status">Статус профилей</a>
   <a href="#sec-strategy">Переключение стратегии</a>
-  <a href="#sec-autorun">zenith-autorun</a>
-  <a href="#sec-promoter">zenith-promoter</a>
-  <a href="#sec-daemon">autotune-daemon</a>
-  <a href="#sec-autoupdate">Автообновление</a>
   {% if by_profile %}<a href="#sec-genomes">Геномы по профилям</a>{% endif %}
 </nav>
 
@@ -148,139 +144,12 @@
     После set+restart status/код ответа ничего не гарантируют (<code>circular_locked</code>
     может тихо не подхватить новую стратегию, см. выше) — эта кнопка реально
     curl'ит домены профиля из <code>domain_pool</code>, как это уже делает
-    <code>zenith-promoter</code> сам после автопродвижения.
+    <code>zenith-promoter</code> сам после автопродвижения (см. страницу
+    «Автоматизация»).
   </p>
   <p class="muted" style="margin-top:12px">
     zapret2: <span class="blur">{{ zapret2_status or 'статус недоступен' }}</span>
   </p>
-</div>
-
-<div class="card" id="sec-autorun">
-  <h3>zenith-autorun — периодическая генерация кандидатов</h3>
-  <p class="muted">
-    Независимый systemd-юнит (<code>Zenith/zenith_autorun.sh</code>) — по
-    кругу, по одному профилю за раз, запускает то же самое, что кнопка
-    «запустить» выше, только сам и по расписанию (интервал/раунды — в
-    <code>Zenith/.env</code>, не тут). Работает и без панели — эти кнопки
-    просто <code>systemctl start/stop</code> поверх него, как для
-    autotune-daemon ниже.
-  </p>
-  {% if autorun_error %}<div class="flash error">{{ autorun_error }}</div>{% endif %}
-  <form method="post" action="/controls/zenith-autorun/start" class="inline">
-    <button type="submit">запустить</button>
-  </form>
-  <form method="post" action="/controls/zenith-autorun/stop" class="inline">
-    <button type="submit">остановить</button>
-  </form>
-  <p id="zenith-autorun-status" class="muted" style="margin-top:12px">—</p>
-  <pre id="zenith-autorun-log" class="mono" style="max-height:300px; overflow:auto; background:#0f1115; border:1px solid #2a2e37; border-radius:6px; padding:10px; white-space:pre-wrap"></pre>
-</div>
-
-<div class="card danger-zone" id="sec-promoter">
-  <h3>zenith-promoter — автопродвижение в прод</h3>
-  <p class="muted">
-    Независимый systemd-юнит (<code>Zenith/orchestrator/auto_promoter.py
-    --loop</code>) — критерий тот же, что <code>promote.py</code>
-    (min_pulls + 100% успехов), но РЕАЛЬНО применяет: добавляет
-    <code>strategy=N</code> в <code>/opt/zapret2/config</code>,
-    переключает, рестартует <code>zapret2</code>, проверяет ЖИВЫМ curl по
-    доменам профиля (не только статус процесса) и сам откатывает (backup +
-    старая стратегия + рестарт), если проверка не прошла. Работает и без
-    панели — см.
-    <code>z0r</code> пункт 20 → «Автономный режим» для установки и
-    обязательной ручной проверки перед первым включением на боевом
-    сервере.
-  </p>
-  {% if promoter_error %}<div class="flash error">{{ promoter_error }}</div>{% endif %}
-  <form method="post" action="/controls/zenith-promoter/start" class="inline"
-        onsubmit="return confirm('Включить автопродвижение? Это будет менять боевой /opt/zapret2/config и перезапускать zapret2 БЕЗ подтверждения человека на каждом срабатывании.');">
-    <button type="submit" class="danger">запустить</button>
-  </form>
-  <form method="post" action="/controls/zenith-promoter/stop" class="inline">
-    <button type="submit">остановить</button>
-  </form>
-  <p id="zenith-promoter-status" class="muted" style="margin-top:12px">—</p>
-  <pre id="zenith-promoter-log" class="mono" style="max-height:300px; overflow:auto; background:#0f1115; border:1px solid #2a2e37; border-radius:6px; padding:10px; white-space:pre-wrap"></pre>
-</div>
-
-<div class="card" id="sec-daemon">
-  <h3>autotune-daemon</h3>
-  <p class="muted">
-    Фоновая служба (z0r пункт 14) — health-check уже применённой стратегии,
-    полный re-tune только после нескольких провалов подряд (см.
-    <code>autotune_daemon.sh</code>). Кнопки ниже — то же самое
-    <code>systemctl start/stop</code>, что и руками из терминала.
-  </p>
-  {% if daemon_error %}<div class="flash error">{{ daemon_error }}</div>{% endif %}
-  <form method="post" action="/controls/daemon/start" class="inline">
-    <button type="submit">запустить</button>
-  </form>
-  <form method="post" action="/controls/daemon/stop" class="inline">
-    <button type="submit">остановить</button>
-  </form>
-  <p id="daemon-status" class="muted" style="margin-top:12px">—</p>
-  <pre id="daemon-log" class="mono" style="max-height:300px; overflow:auto; background:#0f1115; border:1px solid #2a2e37; border-radius:6px; padding:10px; white-space:pre-wrap"></pre>
-</div>
-<script>
-function pollServiceStatus(statusUrl, statusElId, logElId) {
-  var statusEl = document.getElementById(statusElId);
-  var logEl = document.getElementById(logElId);
-  function poll() {
-    fetch(statusUrl).then(function (r) { return r.json(); }).then(function (s) {
-      var cls = s.active === "active" ? "ok" : (s.active === "failed" ? "warn" : "");
-      statusEl.innerHTML = "статус: <span class=\"pill" + (cls ? " " + cls : "") + "\">" + s.active + "</span>";
-      var atBottom = logEl.scrollTop + logEl.clientHeight >= logEl.scrollHeight - 20;
-      logEl.textContent = s.log || "";
-      if (atBottom) logEl.scrollTop = logEl.scrollHeight;
-    }).catch(function () {});
-  }
-  poll();
-  setInterval(poll, 5000);
-}
-pollServiceStatus("/controls/zenith-autorun/status", "zenith-autorun-status", "zenith-autorun-log");
-pollServiceStatus("/controls/zenith-promoter/status", "zenith-promoter-status", "zenith-promoter-log");
-pollServiceStatus("/controls/daemon/status", "daemon-status", "daemon-log");
-</script>
-
-<div class="card" id="sec-autoupdate">
-  <h3>Автообновление</h3>
-  <p class="muted">
-    Периодически (~раз в 20 минут, через <code>z2r-autoupdate.timer</code>)
-    подтягивает <code>main</code> каждого включённого проекта и
-    перезапускает то, что нужно (<code>docker compose up -d --build</code>
-    для Zenith, <code>systemctl restart</code> для остальных). То же самое
-    состояние, что и в <code>z0r</code> пункт 24 — один файл на двоих
-    (<code>/etc/z2r_autobench/autoupdate.conf</code>). Таймер:
-    <span class="pill{% if autoupdate_timer_status == 'enabled' %} ok{% elif autoupdate_timer_status not in ('enabled', 'disabled') %} warn{% endif %}">{{ autoupdate_timer_status }}</span>
-    {% if autoupdate_timer_status != 'enabled' %}
-    — ещё не установлен на этом сервере, включи через <code>z0r</code>
-    пункт 24 (панель сама таймер не ставит).
-    {% endif %}
-  </p>
-  {% if autoupdate_error %}<div class="flash error">{{ autoupdate_error }}</div>{% endif %}
-  {% if autoupdate_ok %}<div class="flash">{{ autoupdate_ok }}</div>{% endif %}
-  <div class="table-wrap">
-  <table>
-    <tr><th>Проект</th><th>Статус</th><th>Последнее обновление</th><th></th></tr>
-    {% for p in autoupdate_projects %}
-    <tr>
-      <td>{{ p.label }}</td>
-      <td><span class="pill{% if p.enabled %} ok{% endif %}">{{ "включено" if p.enabled else "выключено" }}</span></td>
-      <td class="muted">{{ p.last_update or "ещё не обновлялось" }}</td>
-      <td>
-        <form method="post" action="/controls/autoupdate/toggle" class="inline">
-          <input type="hidden" name="project" value="{{ p.project }}">
-          <input type="hidden" name="enabled" value="{{ '0' if p.enabled else '1' }}">
-          <button type="submit">{{ "выключить" if p.enabled else "включить" }}</button>
-        </form>
-      </td>
-    </tr>
-    {% endfor %}
-  </table>
-  </div>
-  <form method="post" action="/controls/autoupdate/run" style="margin-top:12px">
-    <button type="submit">Прогнать обновление сейчас (для всех включённых)</button>
-  </form>
 </div>
 
 <div id="sec-genomes">

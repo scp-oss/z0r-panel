@@ -7,10 +7,11 @@
 <p class="muted">
   Реальный хостлист на сервере — <code>TCP_RKN_list.txt</code>
   (официальный, только чтение отсюда) + <code>TCP_Custom.txt</code>
-  (ручные добавления поверх него) — по нему <code>nfqws2</code> решает,
-  чей трафик реально идёт через стратегию профиля RKN_TLS. Добавление
-  домена здесь сразу меняет боевую маршрутизацию, отдельного шага
-  «применить»/рестарта не требуется.
+  (ручные добавления/удаления поверх него) — по нему <code>nfqws2</code>
+  решает, чей трафик реально идёт через стратегию профиля RKN_TLS.
+  Изменения здесь сразу меняют боевую маршрутизацию, отдельного шага
+  «применить»/рестарта не требуется. Из официального списка удалять
+  отсюда нельзя — это read-only снимок, управляется установщиком.
 </p>
 
 {% if production_error %}<div class="flash error">{{ production_error }}</div>{% endif %}
@@ -24,33 +25,48 @@
   </form>
 </div>
 
-<div class="table-wrap">
-<table>
-  <tr><th>Домен</th><th>Источник</th></tr>
-  {% for d in production_list %}
-  <tr>
-    <td>{{ d.host }}</td>
-    <td>
-      {% if d.source == "официальный" %}<span class="pill">{{ d.source }}</span>
-      {% else %}<span class="pill ok">{{ d.source }}</span>{% endif %}
-    </td>
-  </tr>
-  {% else %}
-  <tr><td colspan="2" class="muted">
-    {% if production_error %}Не удалось прочитать список — см. ошибку выше.
-    {% else %}Список пуст или ещё не установлен на этом сервере.{% endif %}
-  </td></tr>
-  {% endfor %}
-</table>
+<div class="card" style="padding-bottom:8px">
+  <input type="text" id="rkn-prod-search" placeholder="Поиск по боевому списку…" style="width:100%; margin-bottom:10px" oninput="filterRows('rkn-prod-search','rkn-prod-rows')">
+  <div class="table-wrap scroll-box">
+  <table>
+    <tr><th>Домен</th><th>Источник</th><th></th></tr>
+    <tbody id="rkn-prod-rows">
+    {% for d in production_list %}
+    <tr>
+      <td>{{ d.host }}</td>
+      <td>
+        {% if d.source == "официальный" %}<span class="pill">{{ d.source }}</span>
+        {% else %}<span class="pill ok">{{ d.source }}</span>{% endif %}
+      </td>
+      <td>
+        {% if d.source != "официальный" %}
+        <form method="post" action="/rkn/remove-production" class="inline"
+              onsubmit="return confirm('Убрать ' + {{ d.host | tojson }} + ' из боевого TCP_Custom.txt? Сразу меняет реальную маршрутизацию.');">
+          <input type="hidden" name="domain" value="{{ d.host }}">
+          <button type="submit" class="danger">удалить</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="3" class="muted">
+      {% if production_error %}Не удалось прочитать список — см. ошибку выше.
+      {% else %}Список пуст или ещё не установлен на этом сервере.{% endif %}
+    </td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="muted" id="rkn-prod-count" style="margin:8px 2px 0"></p>
 </div>
 
 <h2 style="margin-top:32px">Тестовый список (Zenith, только для подбора стратегий)</h2>
 <p class="muted">
   Домены/пути для профиля <code>RKN_TLS</code> из <code>domain_pool</code>
   — таблица, против которой Zenith прогоняет геномы (кнопка «Запустить
-  подбор» на <a href="/controls">странице статуса профилей</a> использует
-  её же). Никак не связано с боевым списком выше — добавление домена
-  сюда только расширяет набор доменов, случайно выбираемых при подборе
+  подбор» на <a href="/controls">странице стратегий</a> использует её
+  же). Никак не связано с боевым списком выше — добавление домена сюда
+  только расширяет набор доменов, случайно выбираемых при подборе
   стратегии, реальный боевой трафик не затрагивает.
 </p>
 
@@ -65,33 +81,61 @@
   </form>
 </div>
 
-<div class="table-wrap">
-<table>
-  <tr><th>Host</th><th>Path</th><th>min_bytes</th><th>Последняя проверка</th><th>Подряд неудач</th><th>Карантин до</th><th>Добавлен</th><th></th></tr>
-  {% for d in domains %}
-  <tr {% if d.quarantined_until %}style="opacity:0.5"{% endif %}>
-    <td>{{ d.host }}</td>
-    <td class="mono">{{ d.path }}</td>
-    <td>{{ d.min_bytes }}</td>
-    <td>
-      {% if d.last_verified_at %}
-        {{ d.last_verified_at }}
-        {% if d.last_verified_ok %}<span class="pill ok">ok</span>{% else %}<span class="pill warn">fail</span>{% endif %}
-      {% else %}<span class="muted">ещё не проверялся</span>{% endif %}
-    </td>
-    <td>{{ d.consecutive_fail }}</td>
-    <td>{% if d.quarantined_until %}<span class="pill warn">{{ d.quarantined_until }}</span>{% else %}—{% endif %}</td>
-    <td>{{ d.added_at }}</td>
-    <td>
-      <form method="post" action="/rkn/{{ d.id }}/delete" class="inline"
-            onsubmit="return confirm('Удалить тестовый домен ' + {{ d.host | tojson }} + ' из domain_pool? Не влияет на боевой список выше, необратимо.');">
-        <button type="submit">удалить</button>
-      </form>
-    </td>
-  </tr>
-  {% else %}
-  <tr><td colspan="8" class="muted">Пока пусто — добавь домен через форму выше.</td></tr>
-  {% endfor %}
-</table>
+<div class="card" style="padding-bottom:8px">
+  <input type="text" id="rkn-test-search" placeholder="Поиск по тестовому списку…" style="width:100%; margin-bottom:10px" oninput="filterRows('rkn-test-search','rkn-test-rows')">
+  <div class="table-wrap scroll-box">
+  <table>
+    <tr><th>Host</th><th>Path</th><th>min_bytes</th><th>Последняя проверка</th><th>Подряд неудач</th><th>Карантин до</th><th>Добавлен</th><th></th></tr>
+    <tbody id="rkn-test-rows">
+    {% for d in domains %}
+    <tr {% if d.quarantined_until %}style="opacity:0.5"{% endif %}>
+      <td>{{ d.host }}</td>
+      <td class="mono">{{ d.path }}</td>
+      <td>{{ d.min_bytes }}</td>
+      <td>
+        {% if d.last_verified_at %}
+          {{ d.last_verified_at }}
+          {% if d.last_verified_ok %}<span class="pill ok">ok</span>{% else %}<span class="pill warn">fail</span>{% endif %}
+        {% else %}<span class="muted">ещё не проверялся</span>{% endif %}
+      </td>
+      <td>{{ d.consecutive_fail }}</td>
+      <td>{% if d.quarantined_until %}<span class="pill warn">{{ d.quarantined_until }}</span>{% else %}—{% endif %}</td>
+      <td>{{ d.added_at }}</td>
+      <td>
+        <form method="post" action="/rkn/{{ d.id }}/delete" class="inline"
+              onsubmit="return confirm('Удалить тестовый домен ' + {{ d.host | tojson }} + ' из domain_pool? Не влияет на боевой список выше, необратимо.');">
+          <button type="submit">удалить</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="8" class="muted">Пока пусто — добавь домен через форму выше.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
 </div>
+
+<script>
+// Общий фильтр для обеих таблиц выше -- чистый substring-match по
+// видимому тексту строки, без учёта регистра. Список может быть
+// длинным (боевой TCP_RKN_list.txt — сотни/тысячи строк) -- без этого
+// найти один конкретный домен можно было только Ctrl+F браузера внутри
+// уже проскроленной страницы.
+function filterRows(inputId, tbodyId) {
+  var q = document.getElementById(inputId).value.trim().toLowerCase();
+  var tbody = document.getElementById(tbodyId);
+  var rows = tbody.getElementsByTagName("tr");
+  var shown = 0;
+  for (var i = 0; i < rows.length; i++) {
+    var match = !q || rows[i].textContent.toLowerCase().indexOf(q) !== -1;
+    rows[i].style.display = match ? "" : "none";
+    if (match) shown++;
+  }
+  if (tbodyId === "rkn-prod-rows") {
+    var countEl = document.getElementById("rkn-prod-count");
+    countEl.textContent = q ? "показано " + shown + " из " + rows.length : "";
+  }
+}
+</script>
 {% endblock %}
