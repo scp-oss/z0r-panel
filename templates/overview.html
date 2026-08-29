@@ -17,7 +17,7 @@
       <td><span class="blur">{{ r.environment_name }}</span> {% if r.is_production %}<span class="pill prod">prod</span>{% endif %}</td>
       <td><span class="blur">{{ r.provider }}</span></td>
       <td>
-        <a class="gid mono" href="/genome/{{ r.genome_id }}">{{ r.rendered_args[:70] }}{% if r.rendered_args|length > 70 %}…{% endif %}</a>
+        <a class="gid mono" href="/genome/{{ r.genome_id }}" title="{{ r.rendered_args }}">{{ r.rendered_args[:70] }}{% if r.rendered_args|length > 70 %}…{% endif %}</a>
         {% if r.promoted_strategy is not none %}
           {% set live = live_locked.get(profile) if r.environment_name == local_env_name else none %}
           {% if live and live != r.promoted_strategy|string %}

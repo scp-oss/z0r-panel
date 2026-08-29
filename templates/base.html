@@ -49,10 +49,31 @@
   }
   button { cursor: pointer; background: #2c3550; border-color: #3d4a72; }
   button:hover { background: #34406b; }
+  /* Опасные/боевые действия (restart zapret2, удаление, включение
+     автопродвижения, добавление в боевой РКН-список) визуально отличались
+     от обычных кнопок ТОЛЬКО confirm()-диалогом -- легко прощёлкать не
+     читая. Явный красноватый акцент, тот же confirm остаётся как вторая
+     линия защиты, не замена. */
+  button.danger { background: #3a2620; border-color: #6b3a2a; color: #f0c8b0; }
+  button.danger:hover { background: #4a2e28; }
   .card {
     background: #1b1e24; border: 1px solid #2a2e37; border-radius: 8px;
     padding: 16px 20px; margin-bottom: 20px;
   }
+  /* Карточка, где действия меняют РЕАЛЬНЫЙ трафик/прод (не просто тест) --
+     видимая тонкая рамка-предупреждение сразу отличает её от обычных
+     read-only/тестовых карточек, до того как читать текст внутри. */
+  .card.danger-zone { border-color: #5c3324; }
+  /* Быстрая внутристраничная навигация -- сейчас используется только на
+     /controls (самая длинная страница панели, 7+ независимых карточек
+     подряд без способа перепрыгнуть между ними кроме скролла). */
+  .quicknav {
+    display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 4px 0 20px;
+    padding: 10px 14px; background: #1b1e24; border: 1px solid #2a2e37;
+    border-radius: 8px; font-size: 13px;
+  }
+  .quicknav a { color: #9fb4ff; text-decoration: none; }
+  .quicknav a:hover { text-decoration: underline; }
   .muted { color: #888; }
   .token-box {
     font-family: monospace; background: #0f1a12; border: 1px solid #2e5c3a;
@@ -65,9 +86,26 @@
      сейчас залочена), клик по конкретной ячейке снимает блюр только с
      неё. См. base.html script ниже -- один делегированный обработчик на
      весь документ, каждая страница просто помечает нужные элементы
-     классом "blur", ничего больше подключать не нужно. */
-  .blur { filter: blur(5px); cursor: pointer; transition: filter .12s ease; }
+     классом "blur", ничего больше подключать не нужно. Подсказка через
+     чистый CSS :hover -- не нужно трогать разметку на каждой странице,
+     где встречается .blur.*/
+  .blur { filter: blur(5px); cursor: pointer; transition: filter .12s ease; position: relative; }
   .blur.revealed { filter: none; }
+  .blur:not(.revealed):hover::after {
+    content: "нажми, чтобы посмотреть"; position: absolute; left: 0; top: 100%;
+    background: #22252c; border: 1px solid #363b46; color: #ccc; padding: 2px 6px;
+    border-radius: 4px; font-size: 11px; white-space: nowrap; z-index: 10; filter: none;
+  }
+  /* Формы с НЕСКОЛЬКИМИ inline-полями в один ряд (тест доменов, ручное
+     переключение стратегии, добавление в РКН-список) раньше не
+     переносились на мобильном -- поля вылезали за край карточки вместо
+     аккуратного переноса строк. Явный класс, не общий "form" -- логин
+     (стек из <p> в столбик) и одиночные кнопки-формы полагаются на
+     обычную блочную раскладку, ломать их flex'ом не нужно. */
+  form.form-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  /* Активная страница в шапке -- раньше все 5 ссылок выглядели одинаково
+     независимо от того, где сейчас находится пользователь. */
+  header a.active { color: #e6e6e6; border-bottom: 2px solid #9fb4ff; padding-bottom: 2px; }
 
   @media (max-width: 640px) {
     header { padding: 8px 12px; gap: 8px 16px; }
@@ -80,11 +118,11 @@
 </head>
 <body>
 <header>
-  <a href="/">Zenith</a>
-  <a href="/nodes">Ноды</a>
-  <a href="/knowledge">База знаний</a>
-  <a href="/rkn">РКН список</a>
-  <a href="/controls">Статус профилей</a>
+  <a href="/" {% if request.url.path == '/' %}class="active"{% endif %}>Zenith</a>
+  <a href="/nodes" {% if request.url.path.startswith('/nodes') %}class="active"{% endif %}>Ноды</a>
+  <a href="/knowledge" {% if request.url.path.startswith('/knowledge') %}class="active"{% endif %}>База знаний</a>
+  <a href="/rkn" {% if request.url.path.startswith('/rkn') %}class="active"{% endif %}>РКН список</a>
+  <a href="/controls" {% if request.url.path.startswith('/controls') %}class="active"{% endif %}>Статус профилей</a>
   <div class="spacer"></div>
   {% if user %}<span class="user">{{ user }} · <a href="/logout">выйти</a></span>{% endif %}
 </header>

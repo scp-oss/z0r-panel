@@ -15,11 +15,12 @@
 
 {% if production_error %}<div class="flash error">{{ production_error }}</div>{% endif %}
 
-<div class="card">
+<div class="card danger-zone">
   <h3>Добавить домен в боевой список</h3>
-  <form method="post" action="/rkn/add-production">
+  <form method="post" action="/rkn/add-production" class="form-row"
+        onsubmit="return confirm('Добавить домен в боевой TCP_Custom.txt? Это сразу меняет реальную маршрутизацию трафика через RKN_TLS.');">
     <input type="text" name="domain" placeholder="домен, например rutracker.org" style="width:280px" required>
-    <button type="submit">добавить</button>
+    <button type="submit" class="danger">добавить</button>
   </form>
 </div>
 
@@ -57,7 +58,7 @@
 
 <div class="card">
   <h3>Добавить тестовый домен</h3>
-  <form method="post" action="/rkn/add">
+  <form method="post" action="/rkn/add" class="form-row">
     <input type="text" name="domain" placeholder="host[/path], например rutracker.org" style="width:280px" required>
     <input type="number" name="min_bytes" value="65536" min="1" style="width:110px" title="минимальный размер ответа в байтах, чтобы считать домен рабочим">
     <button type="submit">добавить</button>

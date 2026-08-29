@@ -3,7 +3,18 @@
 {% block content %}
 <h1>Статус профилей (локальная нода: {{ local_env_name }})</h1>
 
-<div class="card">
+<nav class="quicknav">
+  <a href="#sec-run">Тест доменов</a>
+  <a href="#sec-status">Статус профилей</a>
+  <a href="#sec-strategy">Переключение стратегии</a>
+  <a href="#sec-autorun">zenith-autorun</a>
+  <a href="#sec-promoter">zenith-promoter</a>
+  <a href="#sec-daemon">autotune-daemon</a>
+  <a href="#sec-autoupdate">Автообновление</a>
+  {% if by_profile %}<a href="#sec-genomes">Геномы по профилям</a>{% endif %}
+</nav>
+
+<div class="card" id="sec-run">
   <h3>Запустить подбор на локальной ноде ({{ local_env_name }})</h3>
   <p class="muted">
     Запускает <code>main.py</code> тем же способом, что и руками из
@@ -13,7 +24,7 @@
     странице <a href="/rkn">РКН список</a>).
   </p>
   {% if run_error %}<div class="flash error">{{ run_error }}</div>{% endif %}
-  <form method="post" action="/controls/run">
+  <form method="post" action="/controls/run" class="form-row">
     <select name="profile">
       {% for p in run_profiles %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
     </select>
@@ -60,7 +71,8 @@
       if (s.running) {
         statusEl.textContent = "идёт: " + label + progress + " (с " + s.started_at + ")";
       } else if (s.exit_code !== null) {
-        statusEl.textContent = "завершено: " + label + " (код " + s.exit_code + ", " + s.finished_at + ")";
+        var outcome = s.exit_code === 0 ? "успешно" : "ошибка, код " + s.exit_code;
+        statusEl.textContent = "завершено (" + outcome + "): " + label + ", " + s.finished_at;
       } else {
         statusEl.textContent = label;
       }
@@ -88,7 +100,7 @@
   через <code>promote.py</code>.
 </p>
 
-<div class="table-wrap">
+<div class="table-wrap" id="sec-status">
 <table>
   <tr><th>Профиль</th><th>№</th><th>proto</th><th>Залочена strategy=</th><th>max strategy=</th></tr>
   {% for row in profile_status %}
@@ -103,7 +115,7 @@
 </table>
 </div>
 
-<div class="card">
+<div class="card" id="sec-strategy">
   <h3>Ручное переключение стратегии</h3>
   <p class="muted">
     <code>set_strategy_cli.sh set</code> — пишет в <code>locked.tsv</code>,
@@ -114,17 +126,17 @@
   </p>
   {% if strategy_error %}<div class="flash error">{{ strategy_error }}</div>{% endif %}
   {% if strategy_ok %}<div class="flash">{{ strategy_ok }}</div>{% endif %}
-  <form method="post" action="/controls/strategy/set"
+  <form method="post" action="/controls/strategy/set" class="form-row"
         onsubmit="return confirm('Переключить боевую стратегию? Это меняет прод-трафик прямо сейчас (после restart zapret2).');">
     <select name="profile">
       {% for p in strategy_profiles %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
     </select>
     <input type="number" name="strategy" min="1" placeholder="№ strategy" style="width:110px" required>
-    <button type="submit">применить (set)</button>
+    <button type="submit" class="danger">применить (set)</button>
   </form>
   <form method="post" action="/controls/zapret2/restart" style="margin-top:8px"
         onsubmit="return confirm('Перезапустить zapret2 сейчас? Кратковременно оборвёт активные соединения через него.');">
-    <button type="submit">restart zapret2</button>
+    <button type="submit" class="danger">restart zapret2</button>
   </form>
   <form method="post" action="/controls/strategy/verify" class="inline" style="margin-top:8px">
     <select name="profile">
@@ -143,7 +155,7 @@
   </p>
 </div>
 
-<div class="card">
+<div class="card" id="sec-autorun">
   <h3>zenith-autorun — периодическая генерация кандидатов</h3>
   <p class="muted">
     Независимый systemd-юнит (<code>Zenith/zenith_autorun.sh</code>) — по
@@ -164,7 +176,7 @@
   <pre id="zenith-autorun-log" class="mono" style="max-height:300px; overflow:auto; background:#0f1115; border:1px solid #2a2e37; border-radius:6px; padding:10px; white-space:pre-wrap"></pre>
 </div>
 
-<div class="card">
+<div class="card danger-zone" id="sec-promoter">
   <h3>zenith-promoter — автопродвижение в прод</h3>
   <p class="muted">
     Независимый systemd-юнит (<code>Zenith/orchestrator/auto_promoter.py
@@ -182,7 +194,7 @@
   {% if promoter_error %}<div class="flash error">{{ promoter_error }}</div>{% endif %}
   <form method="post" action="/controls/zenith-promoter/start" class="inline"
         onsubmit="return confirm('Включить автопродвижение? Это будет менять боевой /opt/zapret2/config и перезапускать zapret2 БЕЗ подтверждения человека на каждом срабатывании.');">
-    <button type="submit">запустить</button>
+    <button type="submit" class="danger">запустить</button>
   </form>
   <form method="post" action="/controls/zenith-promoter/stop" class="inline">
     <button type="submit">остановить</button>
@@ -191,7 +203,7 @@
   <pre id="zenith-promoter-log" class="mono" style="max-height:300px; overflow:auto; background:#0f1115; border:1px solid #2a2e37; border-radius:6px; padding:10px; white-space:pre-wrap"></pre>
 </div>
 
-<div class="card">
+<div class="card" id="sec-daemon">
   <h3>autotune-daemon</h3>
   <p class="muted">
     Фоновая служба (z0r пункт 14) — health-check уже применённой стратегии,
@@ -230,7 +242,7 @@ pollServiceStatus("/controls/zenith-promoter/status", "zenith-promoter-status", 
 pollServiceStatus("/controls/daemon/status", "daemon-status", "daemon-log");
 </script>
 
-<div class="card">
+<div class="card" id="sec-autoupdate">
   <h3>Автообновление</h3>
   <p class="muted">
     Периодически (~раз в 20 минут, через <code>z2r-autoupdate.timer</code>)
@@ -271,6 +283,7 @@ pollServiceStatus("/controls/daemon/status", "daemon-status", "daemon-log");
   </form>
 </div>
 
+<div id="sec-genomes">
 {% for profile, rows in by_profile.items() %}
 <div class="card">
   <h3>{{ profile }} — лучшие геномы локально ({{ local_env_name }})</h3>
@@ -279,7 +292,7 @@ pollServiceStatus("/controls/daemon/status", "daemon-status", "daemon-log");
     <tr><th>Геном</th><th>Family</th><th>Прогонов</th><th>Успехов</th><th>avg_score</th></tr>
     {% for r in rows %}
     <tr {% if r.family == 'control' %}style="opacity:.7"{% endif %}>
-      <td><a class="gid mono" href="/genome/{{ r.id }}">{{ r.rendered_args[:70] }}</a></td>
+      <td><a class="gid mono" href="/genome/{{ r.id }}" title="{{ r.rendered_args }}">{{ r.rendered_args[:70] }}{% if r.rendered_args|length > 70 %}…{% endif %}</a></td>
       <td><span class="pill{% if r.family == 'control' %} prod{% endif %}">{{ r.family }}</span></td>
       <td>{{ r.pulls }}</td>
       <td>{{ r.successes }}</td>
@@ -290,4 +303,5 @@ pollServiceStatus("/controls/daemon/status", "daemon-status", "daemon-log");
   </div>
 </div>
 {% endfor %}
+</div>
 {% endblock %}

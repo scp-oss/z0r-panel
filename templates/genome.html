@@ -50,7 +50,7 @@
     <tr><th>Геном</th><th>Оператор</th><th>Поколение</th><th>Создан</th></tr>
     {% for a in ancestors %}
     <tr {% if a.id == genome.id %}style="background:#20242c"{% endif %}>
-      <td><a class="gid mono" href="/genome/{{ a.id }}">{{ a.id[:14] }}…</a> <code class="mono">{{ a.rendered_args[:60] }}</code></td>
+      <td><a class="gid mono" href="/genome/{{ a.id }}">{{ a.id[:14] }}…</a> <code class="mono" title="{{ a.rendered_args }}">{{ a.rendered_args[:60] }}{% if a.rendered_args|length > 60 %}…{% endif %}</code></td>
       <td>{{ a.mutation_op or '(сид)' }}</td>
       <td>{{ a.generation }}</td>
       <td>{{ a.created_at }}</td>
@@ -68,7 +68,7 @@
     <tr><th>Геном</th><th>Оператор</th><th>Поколение</th><th>Создан</th></tr>
     {% for c in children %}
     <tr>
-      <td><a class="gid mono" href="/genome/{{ c.id }}">{{ c.id[:14] }}…</a> <code class="mono">{{ c.rendered_args[:60] }}</code></td>
+      <td><a class="gid mono" href="/genome/{{ c.id }}">{{ c.id[:14] }}…</a> <code class="mono" title="{{ c.rendered_args }}">{{ c.rendered_args[:60] }}{% if c.rendered_args|length > 60 %}…{% endif %}</code></td>
       <td>{{ c.mutation_op or '—' }}</td>
       <td>{{ c.generation }}</td>
       <td>{{ c.created_at }}</td>

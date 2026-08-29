@@ -95,12 +95,12 @@ PANEL_NODE_TOKEN={{ new_token }}</pre>
       {% if e.genome_count == 0 %}
       <form method="post" action="/nodes/{{ e.id }}/delete" class="inline"
             onsubmit="return confirm('Удалить ноду ' + {{ e.name | tojson }} + ' (' + {{ (e.node_uuid[:8] if e.node_uuid else e.id) | tojson }} + ')? Токен перестанет работать, действие необратимо.');">
-        <button type="submit">удалить</button>
+        <button type="submit" class="danger">удалить</button>
       </form>
       {% else %}
       <form method="post" action="/nodes/{{ e.id }}/force-delete" class="inline"
             onsubmit="return prompt('У ноды есть история ({{ e.genome_count }} геном(ов), {{ e.total_pulls }} прогон(ов)) -- она будет удалена НАВСЕГДА вместе с нодой. Введи имя ноды для подтверждения: ' + {{ e.name | tojson }}) === {{ e.name | tojson }};">
-        <button type="submit">удалить со всей историей</button>
+        <button type="submit" class="danger">удалить со всей историей</button>
       </form>
       {% endif %}
       {% endif %}
