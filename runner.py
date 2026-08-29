@@ -154,23 +154,40 @@ def start(profile: str, rounds: int, domain: str | None) -> str | None:
 
 
 def _parse_log(text: str):
+    """last_round -- раунд, чья строка результата уже реально попала в
+    лог (семантика не изменилась). pending_round -- отдельно: заголовок
+    раунда УЖЕ напечатан, а строки результата за ним ЕЩЁ нет -- реальный
+    разрыв между "[N/M] ..." и следующей за ним "-> OK/fail (...)", в
+    который main.py применяет геном в песочнице + settle-пауза + сама
+    проба (может занимать заметное время). Раньше это не различалось --
+    UI показывал last_round предыдущего, уже завершённого раунда, пока
+    шёл текущий, и выглядело так, будто прогресс завис, хотя работа шла
+    (живой запрос: непонятно, "идёт вычисление результатов" или прогон
+    подвис)."""
     lines = text.splitlines()
     successes = []
     last_round = None
-    for i in range(len(lines) - 1):
+    pending_round = None
+    n = len(lines)
+    for i in range(n):
         m1 = _ROUND_RE.match(lines[i])
         if not m1:
             continue
-        last_round = {"round": int(m1.group(1)), "rounds": int(m1.group(2))}
-        m2 = _RESULT_RE.match(lines[i + 1])
-        if m2 and m2.group(1) == "OK":
-            successes.append({
-                "round": int(m1.group(1)), "rounds": int(m1.group(2)),
-                "op": m1.group(4), "args": m1.group(5),
-                "bytes": int(m2.group(2)), "latency_ms": int(m2.group(3)), "domain": m2.group(4),
-            })
+        round_info = {"round": int(m1.group(1)), "rounds": int(m1.group(2))}
+        if i + 1 < n:
+            last_round = round_info
+            pending_round = None
+            m2 = _RESULT_RE.match(lines[i + 1])
+            if m2 and m2.group(1) == "OK":
+                successes.append({
+                    "round": int(m1.group(1)), "rounds": int(m1.group(2)),
+                    "op": m1.group(4), "args": m1.group(5),
+                    "bytes": int(m2.group(2)), "latency_ms": int(m2.group(3)), "domain": m2.group(4),
+                })
+        else:
+            pending_round = round_info
     successes.sort(key=lambda r: r["bytes"], reverse=True)
-    return successes, last_round, lines
+    return successes, last_round, pending_round, lines
 
 
 def status() -> dict:
@@ -178,10 +195,10 @@ def status() -> dict:
         running = _is_running_locked()
         snapshot = dict(_state)
 
-    successes, last_round, lines = [], None, []
+    successes, last_round, pending_round, lines = [], None, None, []
     if snapshot["log_path"] and os.path.exists(snapshot["log_path"]):
         with open(snapshot["log_path"], errors="replace") as f:
-            successes, last_round, lines = _parse_log(f.read())
+            successes, last_round, pending_round, lines = _parse_log(f.read())
 
     # Лог целиком неинформативен (сплошные fail) -- но если прогон упал с
     # ошибкой (не 0 и не None), successes часто пуст, а разбираться, ПОЧЕМУ
@@ -200,6 +217,7 @@ def status() -> dict:
         "finished_at": snapshot["finished_at"],
         "exit_code": snapshot["exit_code"],
         "last_round": last_round,
+        "pending_round": pending_round,
         "successes": successes,
         "error_tail": error_tail,
     }

@@ -32,12 +32,15 @@
     <button type="submit">остановить</button>
   </form>
   <p id="run-status" class="muted" style="margin-top:12px">—</p>
+  <div id="run-progress" class="progress-bar" style="display:none"><div id="run-progress-fill" class="progress-bar-fill"></div></div>
   <div id="run-successes"></div>
   <pre id="run-error" class="mono" style="max-height:300px; overflow:auto; background:#0f1115; border:1px solid #2a2e37; border-radius:6px; padding:10px; white-space:pre-wrap; display:none"></pre>
 </div>
 <script>
 (function () {
   var statusEl = document.getElementById("run-status");
+  var progressEl = document.getElementById("run-progress");
+  var progressFillEl = document.getElementById("run-progress-fill");
   var successesEl = document.getElementById("run-successes");
   var errorEl = document.getElementById("run-error");
 
@@ -55,22 +58,52 @@
              "<td class=\"mono\">" + esc(r.args) + "</td><td>" + esc(r.domain) + "</td></tr>";
     }).join("");
     successesEl.innerHTML =
+      "<p class=\"muted\" style=\"margin:10px 0 4px\">Успешных раундов: " + list.length + "</p>" +
       "<div class=\"table-wrap\"><table><tr><th>Байт</th><th>Задержка</th><th>Раунд</th><th>Оператор</th><th>Геном</th><th>Домен</th></tr>" +
       rows + "</table></div>";
   }
 
+  // pending_round -- заголовок раунда уже в логе, а строки результата ещё
+  // нет (main.py применяет геном в песочнице + settle-пауза + сама проба --
+  // может занимать заметное время). Раньше в этот промежуток прогресс
+  // выглядел так, будто завис на предыдущем раунде -- теперь явно
+  // показываем, что именно сейчас считается результат, плюс полосой
+  // прогресса (полосатая/анимированная, пока идёт вычисление, сплошная,
+  // когда раунд только что завершился и следующий ещё не стартовал).
   function poll() {
     fetch("/controls/run/status").then(function (r) { return r.json(); }).then(function (s) {
-      if (!s.profile) { statusEl.textContent = "—"; successesEl.innerHTML = ""; errorEl.style.display = "none"; return; }
+      if (!s.profile) {
+        statusEl.textContent = "—"; successesEl.innerHTML = "";
+        errorEl.style.display = "none"; progressEl.style.display = "none";
+        return;
+      }
       var label = s.profile + (s.domain ? " (" + s.domain + ")" : "") + ", " + s.rounds + " раундов";
-      var progress = s.last_round ? " — раунд " + s.last_round.round + "/" + s.last_round.rounds : "";
+      var okCount = (s.successes || []).length;
+      var countTxt = okCount ? " · успешных: " + okCount : "";
+      var roundInfo = s.pending_round || s.last_round;
+
       if (s.running) {
-        statusEl.textContent = "идёт: " + label + progress + " (с " + s.started_at + ")";
+        if (s.pending_round) {
+          statusEl.textContent = "идёт: " + label + " — раунд " + s.pending_round.round + "/" + s.pending_round.rounds + ", вычисление результата…" + countTxt;
+        } else if (s.last_round) {
+          statusEl.textContent = "идёт: " + label + " — раунд " + s.last_round.round + "/" + s.last_round.rounds + " завершён, готовится следующий…" + countTxt;
+        } else {
+          statusEl.textContent = "идёт: " + label + " — запуск…" + countTxt;
+        }
+        if (roundInfo) {
+          progressEl.style.display = "block";
+          progressFillEl.style.width = Math.round(100 * roundInfo.round / roundInfo.rounds) + "%";
+          progressFillEl.classList.toggle("pending", !!s.pending_round);
+        } else {
+          progressEl.style.display = "none";
+        }
       } else if (s.exit_code !== null) {
         var outcome = s.exit_code === 0 ? "успешно" : "ошибка, код " + s.exit_code;
-        statusEl.textContent = "завершено (" + outcome + "): " + label + ", " + s.finished_at;
+        statusEl.textContent = "завершено (" + outcome + "): " + label + countTxt + ", " + s.finished_at;
+        progressEl.style.display = "none";
       } else {
         statusEl.textContent = label;
+        progressEl.style.display = "none";
       }
       renderSuccesses(s.successes || []);
       if (s.error_tail) {

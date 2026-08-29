@@ -80,6 +80,18 @@
      линия защиты, не замена. */
   button.danger { background: #3a2620; border-color: #6b3a2a; color: #f0c8b0; }
   button.danger:hover { background: #4a2e28; }
+  /* Прогресс-бар прогона подбора (см. /controls "Запустить подбор") --
+     сплошная заливка = раунд только что завершён, готовится следующий;
+     полосатая анимированная = сам раунд сейчас считается (геном уже
+     применён в песочнице, ждём settle+пробу) -- см. runner.py
+     pending_round за объяснением разрыва, который это визуализирует. */
+  .progress-bar { background: #22252c; border: 1px solid #363b46; border-radius: 6px; height: 10px; overflow: hidden; margin: 10px 0; }
+  .progress-bar-fill { height: 100%; background: #3d5aa8; transition: width .3s ease; }
+  .progress-bar-fill.pending {
+    background-image: repeating-linear-gradient(45deg, #3d5aa8, #3d5aa8 10px, #34406b 10px, #34406b 20px);
+    background-size: 28px 28px; animation: progress-stripes 1s linear infinite;
+  }
+  @keyframes progress-stripes { from { background-position: 0 0; } to { background-position: 28px 0; } }
   .card {
     background: #1b1e24; border: 1px solid #2a2e37; border-radius: 8px;
     padding: 16px 20px; margin-bottom: 20px;
