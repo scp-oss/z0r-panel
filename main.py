@@ -29,6 +29,7 @@ get/max):
 import base64
 import json
 import subprocess
+from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, Form, Request
 from fastapi.responses import RedirectResponse
@@ -106,6 +107,23 @@ def _run_cli(*args) -> str | None:
         return out.stdout.strip()
     except Exception:
         return None
+
+
+def _run_rkn_cli(*args) -> tuple[str | None, str | None]:
+    """(stdout, error) -- в отличие от _run_cli() выше, тут нужен текст
+    ошибки для показа человеку (см. rkn_list_cli.sh -- диагностика вроде
+    "уже в списке" или sudoers-отказ идёт в stderr), не просто None при
+    любой неудаче."""
+    try:
+        out = subprocess.run(
+            ["sudo", "-n", "bash", config.RKN_LIST_CLI, *args],
+            capture_output=True, text=True, timeout=10,
+        )
+    except Exception as e:
+        return None, str(e)
+    if out.returncode != 0:
+        return None, (out.stderr or "").strip() or f"rkn_list_cli.sh завершился с кодом {out.returncode}"
+    return out.stdout, None
 
 
 def _probe_real(host: str, path: str, min_bytes: int, timeout: int = 8) -> tuple:
@@ -442,14 +460,39 @@ def knowledge_page(
 
 
 @app.get("/rkn")
-def rkn_page(request: Request, user: str = Depends(auth.require_login), error: str = ""):
+def rkn_page(
+    request: Request, user: str = Depends(auth.require_login),
+    error: str = "", production_error: str = "",
+):
     conn = db.connect()
     try:
         domains = db.list_domains_for_profile(conn, "RKN_TLS")
     finally:
         conn.close()
+
+    # Боевой список (TCP_RKN_list.txt/TCP_Custom.txt на самом сервере,
+    # НЕ БД) -- см. rkn_list_cli.sh докстринг. Читаем его тут же, при
+    # каждом заходе на страницу -- список короткий (не тысячи строк за
+    # один HTTP-запрос ожидать не стоит, но текущий масштаб это не
+    # проблема), отдельного кеша не заводим.
+    production_list = []
+    if not production_error:
+        out, err = _run_rkn_cli("list")
+        if err:
+            production_error = err
+        else:
+            for line in (out or "").splitlines():
+                if not line.strip():
+                    continue
+                source, _, host = line.partition("\t")
+                production_list.append({"source": source, "host": host})
+
     return templates.TemplateResponse(
-        request, "rkn.html", {"user": user, "domains": domains, "error": error},
+        request, "rkn.html",
+        {
+            "user": user, "domains": domains, "error": error,
+            "production_list": production_list, "production_error": production_error,
+        },
     )
 
 
@@ -471,6 +514,25 @@ def rkn_add(
         conn.commit()
     finally:
         conn.close()
+    return RedirectResponse(url="/rkn", status_code=303)
+
+
+@app.post("/rkn/add-production")
+def rkn_add_production(
+    request: Request, user: str = Depends(auth.require_login),
+    domain: str = Form(...),
+):
+    # Пишет в TCP_Custom.txt на самом сервере (см. rkn_list_cli.sh) --
+    # НЕ в domain_pool (та форма выше, /rkn/add, отдельная и намеренно
+    # независимая). Это боевой хостлист, по нему nfqws2 реально решает,
+    # чей трафик идёт через RKN_TLS -- поэтому текст ошибки (sudoers-
+    # отказ, пустой домен и т.п.) показываем как есть, не глотаем.
+    domain = domain.strip()
+    if not domain:
+        return RedirectResponse(url="/rkn?production_error=Пустой+домен", status_code=303)
+    _, err = _run_rkn_cli("add", domain)
+    if err:
+        return RedirectResponse(url=f"/rkn?production_error={quote(err)}", status_code=303)
     return RedirectResponse(url="/rkn", status_code=303)
 
 

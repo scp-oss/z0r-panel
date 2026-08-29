@@ -132,6 +132,11 @@ LOCAL_ENVIRONMENT_PROVIDER = _get("ZENITH_ENVIRONMENT_PROVIDER", "domru")
 Z2R_AUTOBENCH_DIR = _get("Z2R_AUTOBENCH_DIR", os.path.dirname(PANEL_DIR))
 SET_STRATEGY_CLI = os.path.join(Z2R_AUTOBENCH_DIR, "set_strategy_cli.sh")
 
+# /rkn — read-only просмотр + добавление в боевой хостлист RKN_TLS
+# (TCP_RKN_list.txt/TCP_Custom.txt на самом сервере, не БД) -- см.
+# rkn_list_cli.sh докстринг для разделения официального/ручного списков.
+RKN_LIST_CLI = os.path.join(Z2R_AUTOBENCH_DIR, "rkn_list_cli.sh")
+
 # Zenith orchestrator -- сосед по INSTALL_DIR (см. z2r_autobench/z0r::
 # ZENITH_DIR="$INSTALL_DIR/Zenith"). Нужен runner.py -- кнопке "запустить
 # подбор" в /controls, чтобы дёрнуть тот же main.py тем же venv, что при

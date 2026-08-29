@@ -1,19 +1,62 @@
 {% extends "base.html" %}
 {% block title %}Zenith — РКН список{% endblock %}
 {% block content %}
-<h1>РКН список (профиль RKN_TLS)</h1>
+<h1>РКН список</h1>
+
+<h2>Боевой список (сервер)</h2>
+<p class="muted">
+  Реальный хостлист на сервере — <code>TCP_RKN_list.txt</code>
+  (официальный, только чтение отсюда) + <code>TCP_Custom.txt</code>
+  (ручные добавления поверх него) — по нему <code>nfqws2</code> решает,
+  чей трафик реально идёт через стратегию профиля RKN_TLS. Добавление
+  домена здесь сразу меняет боевую маршрутизацию, отдельного шага
+  «применить»/рестарта не требуется.
+</p>
+
+{% if production_error %}<div class="flash error">{{ production_error }}</div>{% endif %}
+
+<div class="card">
+  <h3>Добавить домен в боевой список</h3>
+  <form method="post" action="/rkn/add-production">
+    <input type="text" name="domain" placeholder="домен, например rutracker.org" style="width:280px" required>
+    <button type="submit">добавить</button>
+  </form>
+</div>
+
+<div class="table-wrap">
+<table>
+  <tr><th>Домен</th><th>Источник</th></tr>
+  {% for d in production_list %}
+  <tr>
+    <td>{{ d.host }}</td>
+    <td>
+      {% if d.source == "официальный" %}<span class="pill">{{ d.source }}</span>
+      {% else %}<span class="pill ok">{{ d.source }}</span>{% endif %}
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="2" class="muted">
+    {% if production_error %}Не удалось прочитать список — см. ошибку выше.
+    {% else %}Список пуст или ещё не установлен на этом сервере.{% endif %}
+  </td></tr>
+  {% endfor %}
+</table>
+</div>
+
+<h2 style="margin-top:32px">Тестовый список (Zenith, только для подбора стратегий)</h2>
 <p class="muted">
   Домены/пути для профиля <code>RKN_TLS</code> из <code>domain_pool</code>
-  — та же таблица, против которой Zenith прогоняет геномы (кнопка
-  «Запустить подбор» на <a href="/controls">странице статуса профилей</a>
-  использует её же). Домены, добавленные здесь, сразу участвуют в
-  следующих раундах — отдельного шага «применить» не нужно.
+  — таблица, против которой Zenith прогоняет геномы (кнопка «Запустить
+  подбор» на <a href="/controls">странице статуса профилей</a> использует
+  её же). Никак не связано с боевым списком выше — добавление домена
+  сюда только расширяет набор доменов, случайно выбираемых при подборе
+  стратегии, реальный боевой трафик не затрагивает.
 </p>
 
 {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
 
 <div class="card">
-  <h3>Добавить домен</h3>
+  <h3>Добавить тестовый домен</h3>
   <form method="post" action="/rkn/add">
     <input type="text" name="domain" placeholder="host[/path], например rutracker.org" style="width:280px" required>
     <input type="number" name="min_bytes" value="65536" min="1" style="width:110px" title="минимальный размер ответа в байтах, чтобы считать домен рабочим">
