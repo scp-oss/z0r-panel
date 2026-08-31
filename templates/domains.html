@@ -19,6 +19,8 @@
   {% for p in profiles %}
   <a href="/domains?profile={{ p }}"{% if p == profile %} class="active"{% endif %}>{{ p }}</a>
   {% endfor %}
+  <span class="muted">|</span>
+  <a href="#custom-domains-section">Кастомные домены</a>
 </nav>
 
 {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
