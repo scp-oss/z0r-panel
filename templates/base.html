@@ -173,6 +173,7 @@
     <a href="/knowledge" {% if request.url.path.startswith('/knowledge') %}class="active"{% endif %}>База знаний</a>
     <a href="/rkn" {% if request.url.path.startswith('/rkn') %}class="active"{% endif %}>РКН список</a>
     <a href="/custom-domains" {% if request.url.path.startswith('/custom-domains') %}class="active"{% endif %}>Кастомные домены</a>
+    <a href="/domains" {% if request.url.path.startswith('/domains') %}class="active"{% endif %}>Домены (тест)</a>
     <div class="group-label">Управление</div>
     <a href="/controls" {% if request.url.path == '/controls' %}class="active"{% endif %}>Стратегии</a>
     <a href="/controls/automation" {% if request.url.path.startswith('/controls/automation') %}class="active"{% endif %}>Автоматизация</a>

@@ -463,14 +463,8 @@ def knowledge_page(
 @app.get("/rkn")
 def rkn_page(
     request: Request, user: str = Depends(auth.require_login),
-    error: str = "", production_error: str = "",
+    production_error: str = "",
 ):
-    conn = db.connect()
-    try:
-        domains = db.list_domains_for_profile(conn, "RKN_TLS")
-    finally:
-        conn.close()
-
     # Боевой список (TCP_RKN_list.txt/TCP_Custom.txt на самом сервере,
     # НЕ БД) -- см. rkn_list_cli.sh докстринг. Читаем его при КАЖДОМ
     # заходе на страницу, БЕЗУСЛОВНО -- даже если production_error уже
@@ -482,6 +476,12 @@ def rkn_page(
     # (genuinely не удалось выполнить list) важнее ошибки формы --
     # перезаписывает её, а не наоборот, иначе человек увидит "Пустой
     # домен" и пустую таблицу без объяснения, почему она пустая.
+    #
+    # ТЕСТОВЫЙ список (domain_pool) для RKN_TLS сюда больше НЕ подмешан --
+    # переехал на универсальную /domains?profile=RKN_TLS (2026-08-31, по
+    # прямому запросу: "у каждого профиля свой тестер", домены YT_TLS
+    # НЕ должны попадать в РКН-механику и наоборот -- эта страница
+    # держит только то, что реально относится к RKN_TLS-хостлисту).
     production_list = []
     out, list_err = _run_rkn_cli("list")
     if list_err:
@@ -496,31 +496,121 @@ def rkn_page(
     return templates.TemplateResponse(
         request, "rkn.html",
         {
-            "user": user, "domains": domains, "error": error,
+            "user": user,
             "production_list": production_list, "production_error": production_error,
         },
     )
 
 
-@app.post("/rkn/add")
-def rkn_add(
+# Профили, для которых имеет смысл тестовый domain_pool -- curl-проба
+# по host/path (см. tester.probe в Zenith), поэтому только TCP TLS/HTTP,
+# не UDP-профили (VOICE_UDP/GAMES_UDP/YT_QUIC_UDP тестируются иначе, см.
+# genome.PROFILE_FILTER_TYPE в Zenith).
+DOMAIN_LIST_PROFILES = ["YT_TLS", "GV_TLS", "RKN_TLS", "DS_TLS", "FB_TLS", "FB_HTTP"]
+
+
+@app.get("/domains")
+def domains_page(
     request: Request, user: str = Depends(auth.require_login),
-    domain: str = Form(...), min_bytes: int = Form(65536),
+    profile: str = "YT_TLS", error: str = "", ok: str = "",
 ):
-    # Тот же разбор host[/path], что runner.py передаёт в main.py
-    # --domain -- см. Zenith/orchestrator/main.py::run(). Пустой host
-    # (только "/path" или пустая строка) ловим тут явно -- иначе
-    # get_or_create_domain тихо создаст мусорную строку с host=''.
-    host, _, path = domain.strip().partition("/")
-    if not host:
-        return RedirectResponse(url="/rkn?error=Пустой+домен", status_code=303)
+    """Каждый профиль -- свой независимый тестовый список доменов (по
+    прямому запросу: "мы же с тобой договорились давно уже что для
+    каждого профиля свой тестер... YouTube весьма специфичный, мы не
+    будем его вносить в РКН список"). Один шаблон/роут на ЛЮБОЙ профиль
+    из DOMAIN_LIST_PROFILES, а не отдельная страница на каждый -- та же
+    db.list_domains_for_profile()/get_or_create_domain()/delete_domain(),
+    что раньше жили только на /rkn (см. db.py::list_domains_for_profile
+    докстринг -- она уже была написана профиль-параметризованной именно
+    "для любого будущего списка доменов профиля в панели")."""
+    if profile not in DOMAIN_LIST_PROFILES:
+        profile = "YT_TLS"
     conn = db.connect()
     try:
-        db.get_or_create_domain(conn, host, "/" + path if path else "/", "RKN_TLS", max(1, min_bytes))
+        domains = db.list_domains_for_profile(conn, profile)
+    finally:
+        conn.close()
+    return templates.TemplateResponse(
+        request, "domains.html",
+        {
+            "user": user, "profile": profile, "profiles": DOMAIN_LIST_PROFILES,
+            "domains": domains, "error": error, "ok": ok,
+        },
+    )
+
+
+def _add_one_domain(conn, profile: str, raw: str, min_bytes: int) -> bool:
+    """Тот же разбор host[/path], что runner.py передаёт в main.py
+    --domain -- см. Zenith/orchestrator/main.py::run(). Пустой host
+    (только "/path" или пустая строка) ловим явно -- иначе
+    get_or_create_domain тихо создаст мусорную строку с host=''. False,
+    если строка пуста после разбора (вызывающий сам решает, считать это
+    ошибкой или просто пропустить, см. bulk-add)."""
+    host, _, path = raw.strip().partition("/")
+    if not host:
+        return False
+    db.get_or_create_domain(conn, host, "/" + path if path else "/", profile, max(1, min_bytes))
+    return True
+
+
+@app.post("/domains/add")
+def domains_add(
+    request: Request, user: str = Depends(auth.require_login),
+    profile: str = Form(...), domain: str = Form(...), min_bytes: int = Form(65536),
+):
+    if profile not in DOMAIN_LIST_PROFILES:
+        return RedirectResponse(url="/domains?error=Неизвестный+профиль", status_code=303)
+    conn = db.connect()
+    try:
+        added = _add_one_domain(conn, profile, domain, min_bytes)
+        if added:
+            conn.commit()
+    finally:
+        conn.close()
+    if not added:
+        return RedirectResponse(url=f"/domains?profile={profile}&error=Пустой+домен", status_code=303)
+    return RedirectResponse(url=f"/domains?profile={profile}", status_code=303)
+
+
+@app.post("/domains/bulk-add")
+def domains_bulk_add(
+    request: Request, user: str = Depends(auth.require_login),
+    profile: str = Form(...), domains: str = Form(...), min_bytes: int = Form(65536),
+):
+    """Один домен на строку -- для разового заброса готового курированного
+    списка (напр. russia-youtube.txt для YT_TLS) вместо добавления по
+    одному через /domains/add. Пустые строки и строки, начинающиеся с #,
+    молча пропускаются (даёт вставить список как есть, с комментариями)."""
+    if profile not in DOMAIN_LIST_PROFILES:
+        return RedirectResponse(url="/domains?error=Неизвестный+профиль", status_code=303)
+    count = 0
+    conn = db.connect()
+    try:
+        for line in domains.splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if _add_one_domain(conn, profile, line, min_bytes):
+                count += 1
         conn.commit()
     finally:
         conn.close()
-    return RedirectResponse(url="/rkn", status_code=303)
+    return RedirectResponse(url=f"/domains?profile={profile}&ok=Добавлено+{count}", status_code=303)
+
+
+@app.post("/domains/{domain_id}/delete")
+def domains_delete(
+    request: Request, domain_id: int, user: str = Depends(auth.require_login),
+    profile: str = Form(...),
+):
+    if profile not in DOMAIN_LIST_PROFILES:
+        profile = "YT_TLS"
+    conn = db.connect()
+    try:
+        db.delete_domain(conn, domain_id)
+    finally:
+        conn.close()
+    return RedirectResponse(url=f"/domains?profile={profile}", status_code=303)
 
 
 @app.post("/rkn/add-production")
@@ -558,20 +648,6 @@ def rkn_remove_production(
     _, err = _run_rkn_cli("remove", domain)
     if err:
         return RedirectResponse(url=f"/rkn?production_error={quote(err)}", status_code=303)
-    return RedirectResponse(url="/rkn", status_code=303)
-
-
-@app.post("/rkn/{domain_id}/delete")
-def rkn_delete(request: Request, domain_id: int, user: str = Depends(auth.require_login)):
-    # ТОЛЬКО тестовый domain_pool (см. db.delete_domain) -- удаление из
-    # боевого списка использует отдельный маршрут выше (/rkn/remove-
-    # production, по имени домена, не по id -- у боевого списка нет
-    # своего id, это просто строки текстового файла на сервере).
-    conn = db.connect()
-    try:
-        db.delete_domain(conn, domain_id)
-    finally:
-        conn.close()
     return RedirectResponse(url="/rkn", status_code=303)
 
 

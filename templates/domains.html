@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Zenith — домены (тест){% endblock %}
+{% block content %}
+<h1>Домены для подбора стратегий</h1>
+<p class="muted">
+  У каждого профиля — СВОЙ независимый тестовый список (по прямому
+  запросу: разные профили решают разные задачи, YouTube специфичен и не
+  должен попадать в РКН-механику и наоборот). Таблица ниже — это
+  <code>domain_pool</code>, против которого Zenith прогоняет геномы
+  (кнопка «Запустить подбор» на <a href="/controls">странице стратегий</a>
+  использует её же) — никак не связано с боевым хостлистом
+  (<a href="/rkn">РКН список</a>/<a href="/custom-domains">кастомные
+  домены</a>), добавление сюда только расширяет набор доменов для теста,
+  реальный боевой трафик не затрагивает.
+</p>
+
+<nav class="quicknav">
+  {% for p in profiles %}
+  <a href="/domains?profile={{ p }}"{% if p == profile %} class="active"{% endif %}>{{ p }}</a>
+  {% endfor %}
+</nav>
+
+{% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+{% if ok %}<div class="flash">{{ ok }}</div>{% endif %}
+
+<div class="card">
+  <h3>Добавить тестовый домен ({{ profile }})</h3>
+  <form method="post" action="/domains/add" class="form-row">
+    <input type="hidden" name="profile" value="{{ profile }}">
+    <input type="text" name="domain" placeholder="host[/path], например www.youtube.com" style="width:280px" required>
+    <input type="number" name="min_bytes" value="65536" min="1" style="width:110px" title="минимальный размер ответа в байтах, чтобы считать домен рабочим">
+    <button type="submit">добавить</button>
+  </form>
+  <details style="margin-top:10px">
+    <summary class="muted" style="cursor:pointer">Добавить сразу списком (по домену на строку)</summary>
+    <form method="post" action="/domains/bulk-add" class="form-row" style="margin-top:8px; align-items:flex-start">
+      <input type="hidden" name="profile" value="{{ profile }}">
+      <textarea name="domains" rows="6" style="width:280px; font-family:monospace" placeholder="youtube.com&#10;youtubei.googleapis.com&#10;ytimg.com&#10;..." required></textarea>
+      <input type="number" name="min_bytes" value="65536" min="1" style="width:110px" title="минимальный размер ответа в байтах для всех строк">
+      <button type="submit">добавить список</button>
+    </form>
+  </details>
+</div>
+
+<div class="card" style="padding-bottom:8px">
+  <input type="text" id="domains-search" placeholder="Поиск…" style="width:100%; margin-bottom:10px" oninput="filterRows('domains-search','domains-rows')">
+  <div class="table-wrap scroll-box">
+  <table>
+    <tr><th>Host</th><th>Path</th><th>min_bytes</th><th>Последняя проверка</th><th>Подряд неудач</th><th>Карантин до</th><th>Добавлен</th><th></th></tr>
+    <tbody id="domains-rows">
+    {% for d in domains %}
+    <tr {% if d.quarantined_until %}style="opacity:0.5"{% endif %}>
+      <td>{{ d.host }}</td>
+      <td class="mono">{{ d.path }}</td>
+      <td>{{ d.min_bytes }}</td>
+      <td>
+        {% if d.last_verified_at %}
+          {{ d.last_verified_at }}
+          {% if d.last_verified_ok %}<span class="pill ok">ok</span>{% else %}<span class="pill warn">fail</span>{% endif %}
+        {% else %}<span class="muted">ещё не проверялся</span>{% endif %}
+      </td>
+      <td>{{ d.consecutive_fail }}</td>
+      <td>{% if d.quarantined_until %}<span class="pill warn">{{ d.quarantined_until }}</span>{% else %}—{% endif %}</td>
+      <td>{{ d.added_at }}</td>
+      <td>
+        <form method="post" action="/domains/{{ d.id }}/delete" class="inline"
+              onsubmit="return confirm('Удалить тестовый домен ' + {{ d.host | tojson }} + ' (' + {{ profile | tojson }} + ') из domain_pool? Не влияет на боевой трафик, необратимо.');">
+          <input type="hidden" name="profile" value="{{ profile }}">
+          <button type="submit">удалить</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="8" class="muted">Пока пусто — добавь домен через форму выше.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<script>
+function filterRows(inputId, tbodyId) {
+  var q = document.getElementById(inputId).value.trim().toLowerCase();
+  var tbody = document.getElementById(tbodyId);
+  var rows = tbody.getElementsByTagName("tr");
+  for (var i = 0; i < rows.length; i++) {
+    var match = !q || rows[i].textContent.toLowerCase().indexOf(q) !== -1;
+    rows[i].style.display = match ? "" : "none";
+  }
+}
+</script>
+{% endblock %}

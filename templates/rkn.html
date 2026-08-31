@@ -60,68 +60,18 @@
   <p class="muted" id="rkn-prod-count" style="margin:8px 2px 0"></p>
 </div>
 
-<h2 style="margin-top:32px">Тестовый список (Zenith, только для подбора стратегий)</h2>
-<p class="muted">
-  Домены/пути для профиля <code>RKN_TLS</code> из <code>domain_pool</code>
-  — таблица, против которой Zenith прогоняет геномы (кнопка «Запустить
-  подбор» на <a href="/controls">странице стратегий</a> использует её
-  же). Никак не связано с боевым списком выше — добавление домена сюда
-  только расширяет набор доменов, случайно выбираемых при подборе
-  стратегии, реальный боевой трафик не затрагивает.
+<p class="muted" style="margin-top:24px">
+  Тестовый список доменов для подбора стратегий (Zenith) переехал на
+  отдельную страницу <a href="/domains?profile=RKN_TLS">«Домены (тест)»</a>
+  — у каждого профиля (YT_TLS/RKN_TLS/Discord/...) свой независимый
+  список, не смешанный с этим боевым РКН-хостлистом.
 </p>
 
-{% if error %}<div class="flash error">{{ error }}</div>{% endif %}
-
-<div class="card">
-  <h3>Добавить тестовый домен</h3>
-  <form method="post" action="/rkn/add" class="form-row">
-    <input type="text" name="domain" placeholder="host[/path], например rutracker.org" style="width:280px" required>
-    <input type="number" name="min_bytes" value="65536" min="1" style="width:110px" title="минимальный размер ответа в байтах, чтобы считать домен рабочим">
-    <button type="submit">добавить</button>
-  </form>
-</div>
-
-<div class="card" style="padding-bottom:8px">
-  <input type="text" id="rkn-test-search" placeholder="Поиск по тестовому списку…" style="width:100%; margin-bottom:10px" oninput="filterRows('rkn-test-search','rkn-test-rows')">
-  <div class="table-wrap scroll-box">
-  <table>
-    <tr><th>Host</th><th>Path</th><th>min_bytes</th><th>Последняя проверка</th><th>Подряд неудач</th><th>Карантин до</th><th>Добавлен</th><th></th></tr>
-    <tbody id="rkn-test-rows">
-    {% for d in domains %}
-    <tr {% if d.quarantined_until %}style="opacity:0.5"{% endif %}>
-      <td>{{ d.host }}</td>
-      <td class="mono">{{ d.path }}</td>
-      <td>{{ d.min_bytes }}</td>
-      <td>
-        {% if d.last_verified_at %}
-          {{ d.last_verified_at }}
-          {% if d.last_verified_ok %}<span class="pill ok">ok</span>{% else %}<span class="pill warn">fail</span>{% endif %}
-        {% else %}<span class="muted">ещё не проверялся</span>{% endif %}
-      </td>
-      <td>{{ d.consecutive_fail }}</td>
-      <td>{% if d.quarantined_until %}<span class="pill warn">{{ d.quarantined_until }}</span>{% else %}—{% endif %}</td>
-      <td>{{ d.added_at }}</td>
-      <td>
-        <form method="post" action="/rkn/{{ d.id }}/delete" class="inline"
-              onsubmit="return confirm('Удалить тестовый домен ' + {{ d.host | tojson }} + ' из domain_pool? Не влияет на боевой список выше, необратимо.');">
-          <button type="submit">удалить</button>
-        </form>
-      </td>
-    </tr>
-    {% else %}
-    <tr><td colspan="8" class="muted">Пока пусто — добавь домен через форму выше.</td></tr>
-    {% endfor %}
-    </tbody>
-  </table>
-  </div>
-</div>
-
 <script>
-// Общий фильтр для обеих таблиц выше -- чистый substring-match по
-// видимому тексту строки, без учёта регистра. Список может быть
-// длинным (боевой TCP_RKN_list.txt — сотни/тысячи строк) -- без этого
-// найти один конкретный домен можно было только Ctrl+F браузера внутри
-// уже проскроленной страницы.
+// substring-match по видимому тексту строки, без учёта регистра. Список
+// может быть длинным (боевой TCP_RKN_list.txt — сотни/тысячи строк) --
+// без этого найти один конкретный домен можно было только Ctrl+F
+// браузера внутри уже проскроленной страницы.
 function filterRows(inputId, tbodyId) {
   var q = document.getElementById(inputId).value.trim().toLowerCase();
   var tbody = document.getElementById(tbodyId);

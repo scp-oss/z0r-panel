@@ -162,3 +162,34 @@ convention.
   reasoning) — it only empties that domain's dedicated hostlist file, so
   the panel's remove button is safe to expose without the same
   preview/confirm ceremony as add.
+
+## `/domains` — per-profile test domain_pool, split out of `/rkn` (since 2026-08-31)
+
+- `/rkn`'s old "тестовый список" section (`domain_pool` CRUD, used by
+  Zenith's genome testing and now `auto_promoter.py`'s live-check) was
+  hardcoded to `RKN_TLS` — by direct request this is architecturally
+  wrong: "мы же с тобой договорились давно уже что для каждого профиля
+  свой тестер... YouTube весьма специфичный, мы не будем его вносить в
+  РКН список" (each profile gets its own independent tester; YouTube's
+  domains must never be mixed into the RKN hostlist/mechanism). Moved to
+  a new `/domains?profile=X` page covering any profile in
+  `DOMAIN_LIST_PROFILES` (`YT_TLS`/`GV_TLS`/`RKN_TLS`/`DS_TLS`/`FB_TLS`/
+  `FB_HTTP` — the TCP TLS/HTTP profiles `tester.probe()` actually curls;
+  UDP-only profiles use a different test mechanism entirely, see
+  `genome.PROFILE_FILTER_TYPE` in Zenith).
+- Zero new DB logic needed — `db.list_domains_for_profile()`/
+  `get_or_create_domain()`/`delete_domain()` were already
+  profile-parameterized (the first one's own docstring literally
+  anticipated this: "для страницы /rkn (и любого другого будущего
+  'список доменов профиля' в панели)"). This page is that "future" page.
+- `/rkn` now shows ONLY the production hostlist (`TCP_RKN_list.txt`/
+  `TCP_Custom.txt`) — the old `/rkn/add` and `/rkn/{id}/delete` routes are
+  gone, replaced by `/domains/add` and `/domains/{id}/delete` (both take
+  an explicit `profile` field/hidden input rather than assuming RKN_TLS).
+- Live trigger for this split: while diagnosing the YT_TLS/WebOS incident
+  (see z0r-panel's/zenith's own commit history same day —
+  `auto_promoter.py`'s live-check gap), the natural next question was
+  "why does the live-check only test one www.youtube.com row instead of
+  several real YouTube domains" — the honest answer was that
+  `domain_pool` for YT_TLS only ever had one row, and the only UI to add
+  more (`/rkn`) was scoped to the wrong profile entirely.
