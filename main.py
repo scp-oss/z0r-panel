@@ -503,10 +503,22 @@ def rkn_page(
 
 
 # Профили, для которых имеет смысл тестовый domain_pool -- curl-проба
-# по host/path (см. tester.probe в Zenith), поэтому только TCP TLS/HTTP,
-# не UDP-профили (VOICE_UDP/GAMES_UDP/YT_QUIC_UDP тестируются иначе, см.
-# genome.PROFILE_FILTER_TYPE в Zenith).
-DOMAIN_LIST_PROFILES = ["YT_TLS", "GV_TLS", "RKN_TLS", "DS_TLS", "FB_TLS", "FB_HTTP"]
+# по host/path (см. tester.probe в Zenith). VOICE_UDP/GAMES_UDP тестируются
+# иначе (voice-бот / не реализовано) и сюда не входят. YT_QUIC_UDP -- тот
+# же случай, что уже был у GV_TLS: реальный эдж googlevideo.com/QUIC
+# резолвится динамически на каждый раунд (yt-dlp, см. gv_resolver.py и
+# rank_quic.sh) -- запись в domain_pool тут не настоящий тестовый хост, а
+# placeholder исключительно ради domain_id/min_bytes (см. main.py::run в
+# Zenith, ветка "if profile == GV_TLS"). Включена по прямому запросу --
+# добавлять/удалять из этого списка можно чисто для консистентности с
+# GV_TLS, реального эффекта на то, что реально пробуется, не имеет.
+# FB_TLS/FB_HTTP убраны 2026-08-31: Zenith их вообще не умеет запускать
+# (нет ни в genome.PROFILE_FILTER_TYPE, ни в main.py --profile choices,
+# ни в runner.RUNNABLE_PROFILES -- те же [dev]-заглушки, что и GAMES_UDP)
+# -- домены пылятся здесь без единого способа их реально прогнать. Данные
+# в domain_pool для них не удалялись, просто скрыты из навигации; вернуть
+# в список, когда/если Zenith их когда-нибудь реализует.
+DOMAIN_LIST_PROFILES = ["YT_TLS", "GV_TLS", "YT_QUIC_UDP", "RKN_TLS", "DS_TLS"]
 
 
 def _run_domain_sync_cli(*args) -> tuple[str | None, str | None, int]:

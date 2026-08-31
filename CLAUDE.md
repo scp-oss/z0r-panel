@@ -173,10 +173,7 @@ convention.
   РКН список" (each profile gets its own independent tester; YouTube's
   domains must never be mixed into the RKN hostlist/mechanism). Moved to
   a new `/domains?profile=X` page covering any profile in
-  `DOMAIN_LIST_PROFILES` (`YT_TLS`/`GV_TLS`/`RKN_TLS`/`DS_TLS`/`FB_TLS`/
-  `FB_HTTP` — the TCP TLS/HTTP profiles `tester.probe()` actually curls;
-  UDP-only profiles use a different test mechanism entirely, see
-  `genome.PROFILE_FILTER_TYPE` in Zenith).
+  `DOMAIN_LIST_PROFILES`.
 - Zero new DB logic needed — `db.list_domains_for_profile()`/
   `get_or_create_domain()`/`delete_domain()` were already
   profile-parameterized (the first one's own docstring literally
@@ -206,6 +203,26 @@ convention.
   `/opt/zapret2` vs `/opt/zator` saga for the fullest writeup of that
   pattern). Feeds through the exact same `get_or_create_domain()` as
   manual/bulk add — no separate "came from sync" bookkeeping.
+- **`DOMAIN_LIST_PROFILES` narrowed 2026-08-31** (direct request, "нет
+  подпункта для yt quic, а FB_TLS/FB_HTTP наверное пока стоит убрать"):
+  now `["YT_TLS", "GV_TLS", "YT_QUIC_UDP", "RKN_TLS", "DS_TLS"]` —
+  `FB_TLS`/`FB_HTTP` removed (Zenith can't run genomes against either one
+  at all yet — not in `genome.PROFILE_FILTER_TYPE`, not in `main.py
+  --profile` choices, not in `runner.RUNNABLE_PROFILES`; same `[dev]`-stub
+  status as `GAMES_UDP`, so their domain lists were dead weight with no
+  way to actually drive a run against them). Existing `domain_pool` rows
+  for those two profiles were NOT deleted, just no longer reachable via
+  the nav — re-add the strings to the list if/when Zenith ever implements
+  them. `YT_QUIC_UDP` added alongside `GV_TLS`, and with the exact same
+  caveat: the real QUIC edge (`googlevideo.com`) is resolved dynamically
+  every round via `yt-dlp` (`gv_resolver.py` in Zenith,
+  `rank_quic.sh`/`quic_probe.py` in z2r_autobench) — a `domain_pool` row
+  here is never the actual host tested, it only exists as a placeholder
+  for `domain_id`/`min_bytes` bookkeeping (see Zenith's `main.py::run`,
+  `if profile == "GV_TLS"` branch — `YT_QUIC_UDP` isn't wired into that
+  branch yet since Zenith doesn't runnable-support it either, so today
+  this entry is UI-only consistency with `GV_TLS`, not yet backed by an
+  actual Zenith run path).
 
 ## Restart buttons on `/controls/automation` (since 2026-08-31)
 
