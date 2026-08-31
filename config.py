@@ -143,9 +143,11 @@ RKN_LIST_CLI = os.path.join(Z2R_AUTOBENCH_DIR, "rkn_list_cli.sh")
 # а не Zenith-геномы в изолированной песочнице.
 RANK_STRATEGIES_CLI = os.path.join(Z2R_AUTOBENCH_DIR, "rank_strategies.sh")
 
-# /custom-domains -- "экзотические" домены со СВОЕЙ независимой
-# стратегией каждый (в отличие от /rkn, где у ВСЕХ доменов под RKN_TLS
-# одна общая стратегия), см. custom_domain_cli.sh докстринг.
+# /domains "Кастомные домены" секция -- "экзотические" домены со СВОЕЙ
+# независимой стратегией каждый (в отличие от /rkn, где у ВСЕХ доменов
+# под RKN_TLS одна общая стратегия), см. custom_domain_cli.sh докстринг.
+# Была отдельной страницей /custom-domains до 2026-08-31, слита в /domains
+# по прямому запросу.
 CUSTOM_DOMAIN_CLI = os.path.join(Z2R_AUTOBENCH_DIR, "custom_domain_cli.sh")
 
 # /domains "Синхронизировать с боевым списком" -- читает официальные

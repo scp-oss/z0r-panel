@@ -130,7 +130,7 @@ convention.
   results is the cue for a human to go set it manually via that section,
   not something this feature does automatically.
 
-## `/custom-domains` — exotic domains with their own independent strategy (since 2026-08-29)
+## `/domains` "Кастомные домены" section — exotic domains with their own independent strategy (since 2026-08-29, merged into `/domains` 2026-08-31)
 
 - Distinct from `/rkn`: that page manages domains that share ONE strategy
   (the whole RKN_TLS profile's). This page is for domains where that
@@ -162,6 +162,27 @@ convention.
   reasoning) — it only empties that domain's dedicated hostlist file, so
   the panel's remove button is safe to expose without the same
   preview/confirm ceremony as add.
+- **Merged from its own standalone page into a section on `/domains`,
+  2026-08-31** (direct request: "вкладку кастомные домены можно перенести
+  в Домены для подбора стратегий" — the custom-domains tab can be moved
+  into "Domains for strategy selection"). Was `/custom-domains` with its
+  own `templates/custom_domains.html`, its own sidebar link, and its own
+  `_custom_domains_context()`; now `_custom_domains_section()` (renamed,
+  `custom_*`-prefixed context keys to avoid colliding with `/domains`'s
+  own `domains`/`error`/`ok` keys for the per-profile `domain_pool` table
+  above it on the same page) is merged into `_domains_full_context()` and
+  rendered as a second section inside `domains.html`, anchored at
+  `#custom-domains-section`. Routes renamed to nest under `/domains`:
+  `/custom-domains/preview` → `/domains/custom/preview`, `/add` → `/add`,
+  `/remove` → `/remove` — each form now also carries a hidden `profile`
+  field so a preview/add/remove round-trip redisplays the page on
+  whichever per-profile tab (`?profile=X`) the user was on, not always
+  defaulting back to `YT_TLS`. Old `GET /custom-domains` still exists as a
+  307 redirect to `/domains`, for anyone with the old URL bookmarked — no
+  such compatibility shim needed for the POST actions since they're only
+  ever hit via the (now-updated) form `action=`, never linked/bookmarked
+  directly. `templates/custom_domains.html` deleted (fully absorbed into
+  `domains.html`).
 
 ## `/domains` — per-profile test domain_pool, split out of `/rkn` (since 2026-08-31)
 
@@ -223,6 +244,20 @@ convention.
   branch yet since Zenith doesn't runnable-support it either, so today
   this entry is UI-only consistency with `GV_TLS`, not yet backed by an
   actual Zenith run path).
+- **Live bug hit right after this shipped**: user tried the new
+  `YT_QUIC_UDP` tab's manual "добавить" field with the file path
+  `/opt/zator/lists/russia-youtubeQ.txt` itself (expecting the panel to
+  read the curated list from it, same idea as the "Синхронизировать"
+  button elsewhere) and got "Пустой домен" — `_add_one_domain()`'s
+  `raw.strip().partition("/")` on a string starting with `/` splits to an
+  empty `host`, so it's correctly rejected as garbage, just with a
+  confusing error for what the user was actually trying to do. Real fix
+  isn't a better error message — it's registering this exact file in
+  `z2r_autobench/domain_list_sync.sh`'s `PROFILE_LIST_FILES` dict
+  (`[YT_QUIC_UDP]="russia-youtubeQ.txt"`, confirmed present on-disk per
+  the file's own header comment) so the "Синхронизировать" button appears
+  for this tab too, same as it already does for `YT_TLS`/`DS_TLS` — the
+  add-domain field was never meant to take a filesystem path, sync is.
 
 ## Restart buttons on `/controls/automation` (since 2026-08-31)
 

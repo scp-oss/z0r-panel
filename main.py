@@ -532,11 +532,11 @@ def _run_domain_sync_cli(*args) -> tuple[str | None, str | None, int]:
     return out.stdout, out.stderr, out.returncode
 
 
-@app.get("/domains")
-def domains_page(
-    request: Request, user: str = Depends(auth.require_login),
-    profile: str = "YT_TLS", error: str = "", ok: str = "",
-):
+def _domains_full_context(
+    user: str, profile: str, error: str = "", ok: str = "",
+    custom_message: str | None = None, custom_message_is_error: bool = False,
+    custom_preview_domain: str | None = None,
+) -> dict:
     """Каждый профиль -- свой независимый тестовый список доменов (по
     прямому запросу: "мы же с тобой договорились давно уже что для
     каждого профиля свой тестер... YouTube весьма специфичный, мы не
@@ -545,7 +545,14 @@ def domains_page(
     db.list_domains_for_profile()/get_or_create_domain()/delete_domain(),
     что раньше жили только на /rkn (см. db.py::list_domains_for_profile
     докстринг -- она уже была написана профиль-параметризованной именно
-    "для любого будущего списка доменов профиля в панели")."""
+    "для любого будущего списка доменов профиля в панели").
+
+    Также несёт секцию "кастомные домены" (см. _custom_domains_section) --
+    объединены на одну страницу 2026-08-31 по прямому запросу ("вкладку
+    кастомные домены можно перенести в Домены для подбора стратегий"):
+    концептуально оба про "домены для подбора стратегий", просто разными
+    механизмами (общий domain_pool под Zenith vs. свой профиль/стратегия
+    на домен через custom_domain_cli.sh) -- не два разных пункта меню."""
     if profile not in DOMAIN_LIST_PROFILES:
         profile = "YT_TLS"
     conn = db.connect()
@@ -561,14 +568,21 @@ def domains_page(
     sync_out, _, sync_rc = _run_domain_sync_cli("--list-profiles")
     sync_profiles = {p.strip() for p in (sync_out or "").splitlines() if p.strip()} if sync_rc == 0 else set()
 
-    return templates.TemplateResponse(
-        request, "domains.html",
-        {
-            "user": user, "profile": profile, "profiles": DOMAIN_LIST_PROFILES,
-            "domains": domains, "error": error, "ok": ok,
-            "sync_available": profile in sync_profiles,
-        },
-    )
+    context = {
+        "user": user, "profile": profile, "profiles": DOMAIN_LIST_PROFILES,
+        "domains": domains, "error": error, "ok": ok,
+        "sync_available": profile in sync_profiles,
+    }
+    context.update(_custom_domains_section(custom_message, custom_message_is_error, custom_preview_domain))
+    return context
+
+
+@app.get("/domains")
+def domains_page(
+    request: Request, user: str = Depends(auth.require_login),
+    profile: str = "YT_TLS", error: str = "", ok: str = "",
+):
+    return templates.TemplateResponse(request, "domains.html", _domains_full_context(user, profile, error, ok))
 
 
 @app.post("/domains/sync")
@@ -734,54 +748,64 @@ def _run_custom_domain_cli(*args) -> tuple[str | None, str | None, int]:
     return out.stdout, out.stderr, out.returncode
 
 
-def _custom_domains_context(user: str, message: str | None = None, message_is_error: bool = False, preview_domain: str | None = None) -> dict:
+def _custom_domains_section(message: str | None = None, message_is_error: bool = False, preview_domain: str | None = None) -> dict:
+    """Секция "кастомные домены" на /domains -- см. custom_domain_cli.sh
+    докстринг. Ключи с префиксом custom_*, т.к. живёт на той же странице,
+    что и per-профильный domain_pool (_domains_full_context) -- без
+    префикса "domains"/"message" пересеклись бы с его собственными
+    ключами того же имени."""
     out, err, rc = _run_custom_domain_cli("list")
-    domains = []
-    list_error = None
+    custom_domains = []
+    custom_list_error = None
     if rc == 0:
         lines = (out or "").splitlines()
         if lines and not lines[0].startswith("(пусто"):
             for line in lines[1:]:
                 parts = line.split()
                 if len(parts) >= 4:
-                    domains.append({"domain": parts[0], "profile": parts[1], "strategy": parts[2], "created": parts[3]})
+                    custom_domains.append({"domain": parts[0], "profile": parts[1], "strategy": parts[2], "created": parts[3]})
     else:
-        list_error = (err or "").strip() or f"custom_domain_cli.sh list завершился с кодом {rc}"
+        custom_list_error = (err or "").strip() or f"custom_domain_cli.sh list завершился с кодом {rc}"
     return {
-        "user": user, "domains": domains, "list_error": list_error,
-        "message": message, "message_is_error": message_is_error,
-        "preview_domain": preview_domain,
+        "custom_domains": custom_domains, "custom_list_error": custom_list_error,
+        "custom_message": message, "custom_message_is_error": message_is_error,
+        "custom_preview_domain": preview_domain,
     }
 
 
 @app.get("/custom-domains")
-def custom_domains_page(request: Request, user: str = Depends(auth.require_login)):
-    return templates.TemplateResponse(request, "custom_domains.html", _custom_domains_context(user))
+def custom_domains_page_redirect():
+    # Слита в /domains 2026-08-31 (см. _domains_full_context докстринг) --
+    # редирект вместо 404 ради старых закладок/ссылок.
+    return RedirectResponse(url="/domains", status_code=307)
 
 
-@app.post("/custom-domains/preview")
-def custom_domains_preview(
+@app.post("/domains/custom/preview")
+def domains_custom_preview(
     request: Request, user: str = Depends(auth.require_login),
-    domain: str = Form(...),
+    domain: str = Form(...), profile: str = Form("YT_TLS"),
 ):
     """add БЕЗ --yes -- custom_domain_cli.sh либо печатает превью
     будущего блока (rc=0, ничего не записано), либо отказывает с
     предупреждением, если домен уже управляется другим профилем или уже
     зарегистрирован (rc=1) -- в обоих случаях просто показываем stderr,
-    подтверждающая форма (POST /custom-domains/add) рисуется в шаблоне
-    только когда preview_domain задан (т.е. rc=0)."""
+    подтверждающая форма (POST /domains/custom/add) рисуется в шаблоне
+    только когда custom_preview_domain задан (т.е. rc=0). profile --
+    скрытое поле формы, только чтобы после ответа остаться на той же
+    вкладке profile=X, к самому custom_domain_cli.sh отношения не имеет."""
     out, err, rc = _run_custom_domain_cli("add", domain)
     text = (err or "").strip() or (out or "").strip()
-    return templates.TemplateResponse(
-        request, "custom_domains.html",
-        _custom_domains_context(user, message=text, message_is_error=(rc != 0), preview_domain=domain if rc == 0 else None),
+    ctx = _domains_full_context(
+        user, profile, custom_message=text, custom_message_is_error=(rc != 0),
+        custom_preview_domain=domain if rc == 0 else None,
     )
+    return templates.TemplateResponse(request, "domains.html", ctx)
 
 
-@app.post("/custom-domains/add")
-def custom_domains_add(
+@app.post("/domains/custom/add")
+def domains_custom_add(
     request: Request, user: str = Depends(auth.require_login),
-    domain: str = Form(...),
+    domain: str = Form(...), profile: str = Form("YT_TLS"),
 ):
     """Реальная запись -- add --yes дописывает новый блок в
     /opt/zapret2/config (backup перед записью, см. custom_domain_cli.sh)
@@ -789,16 +813,14 @@ def custom_domains_add(
     напоминание в самом тексте ответа скрипта), панель его не делает."""
     out, err, rc = _run_custom_domain_cli("add", domain, "--yes")
     text = (err or "").strip() or (out or "").strip()
-    return templates.TemplateResponse(
-        request, "custom_domains.html",
-        _custom_domains_context(user, message=text, message_is_error=(rc != 0)),
-    )
+    ctx = _domains_full_context(user, profile, custom_message=text, custom_message_is_error=(rc != 0))
+    return templates.TemplateResponse(request, "domains.html", ctx)
 
 
-@app.post("/custom-domains/remove")
-def custom_domains_remove(
+@app.post("/domains/custom/remove")
+def domains_custom_remove(
     request: Request, user: str = Depends(auth.require_login),
-    domain: str = Form(...),
+    domain: str = Form(...), profile: str = Form("YT_TLS"),
 ):
     """НЕ удаляет блок из конфига (см. custom_domain_cli.sh докстринг --
     тот же класс риска, что и создание блока, только опаснее делать это
@@ -807,10 +829,8 @@ def custom_domains_remove(
     безвредным."""
     out, err, rc = _run_custom_domain_cli("remove", domain)
     text = (err or "").strip() or (out or "").strip()
-    return templates.TemplateResponse(
-        request, "custom_domains.html",
-        _custom_domains_context(user, message=text, message_is_error=(rc != 0)),
-    )
+    ctx = _domains_full_context(user, profile, custom_message=text, custom_message_is_error=(rc != 0))
+    return templates.TemplateResponse(request, "domains.html", ctx)
 
 
 def _controls_context(

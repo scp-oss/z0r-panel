@@ -9,9 +9,10 @@
   <code>domain_pool</code>, против которого Zenith прогоняет геномы
   (кнопка «Запустить подбор» на <a href="/controls">странице стратегий</a>
   использует её же) — никак не связано с боевым хостлистом
-  (<a href="/rkn">РКН список</a>/<a href="/custom-domains">кастомные
-  домены</a>), добавление сюда только расширяет набор доменов для теста,
-  реальный боевой трафик не затрагивает.
+  (<a href="/rkn">РКН список</a>), добавление сюда только расширяет
+  набор доменов для теста, реальный боевой трафик не затрагивает. Ниже,
+  отдельным блоком — <a href="#custom-domains-section">кастомные
+  домены</a> (своя независимая стратегия на домен, другой механизм).
 </p>
 
 <nav class="quicknav">
@@ -106,4 +107,76 @@ function filterRows(inputId, tbodyId) {
   }
 }
 </script>
+
+<h2 id="custom-domains-section" style="margin-top:32px">Кастомные домены</h2>
+<p class="muted">
+  Другой механизм, не <code>domain_pool</code> выше: отдельно от
+  <a href="/rkn">РКН списка</a> — там у ВСЕХ доменов ОДНА общая стратегия
+  профиля RKN_TLS. Здесь — домены, которым общая стратегия любого
+  существующего профиля не подходит: каждый получает СВОЙ отдельный
+  числовой профиль (новый блок в боевом конфиге, клон диспетчера RKN_TLS
+  с собственным независимым замком стратегии) — можно подобрать
+  стратегию именно под него через <a href="/controls">воронку</a>, не
+  трогая ничего у остальных доменов.
+</p>
+<p class="muted">
+  Если домен уже входит в список YT_TLS/Discord/RKN_TLS — добавление
+  сюда ОТКАЗЫВАЕТ с предупреждением: у него уже есть управляемая
+  стратегия там, второй конфликтующий профиль для него не заводится.
+</p>
+
+{% if custom_message %}<div class="flash{% if custom_message_is_error %} error{% endif %}"><pre class="mono" style="white-space:pre-wrap; margin:0">{{ custom_message }}</pre></div>{% endif %}
+{% if custom_list_error %}<div class="flash error">{{ custom_list_error }}</div>{% endif %}
+
+<div class="card danger-zone">
+  <h3>Добавить домен</h3>
+  <p class="muted" style="margin-top:0">
+    Сначала «предпросмотреть» — покажет ТОЧНЫЙ новый блок конфига (или
+    причину отказа), НИЧЕГО не меняя. Применить (запись + backup +
+    напоминание про restart zapret2) — только после этого, отдельной
+    кнопкой.
+  </p>
+  <form method="post" action="/domains/custom/preview" class="form-row">
+    <input type="hidden" name="profile" value="{{ profile }}">
+    <input type="text" name="domain" placeholder="домен, например example.com" style="width:280px" required>
+    <button type="submit">предпросмотреть</button>
+  </form>
+  {% if custom_preview_domain %}
+  <form method="post" action="/domains/custom/add" class="form-row" style="margin-top:10px"
+        onsubmit="return confirm('Дописать новый блок в /opt/zapret2/config для ' + {{ custom_preview_domain | tojson }} + '? Backup делается автоматически, но после этого нужно вручную перезапустить zapret2 и проверить, что он стартовал.');">
+    <input type="hidden" name="profile" value="{{ profile }}">
+    <input type="hidden" name="domain" value="{{ custom_preview_domain }}">
+    <button type="submit" class="danger">применить (--yes) для {{ custom_preview_domain }}</button>
+  </form>
+  {% endif %}
+</div>
+
+<div class="card" style="padding-bottom:8px">
+  <input type="text" id="custom-domains-search" placeholder="Поиск…" style="width:100%; margin-bottom:10px" oninput="filterRows('custom-domains-search','custom-domains-rows')">
+  <div class="table-wrap scroll-box">
+  <table>
+    <tr><th>Домен</th><th>Профиль</th><th>Текущая strategy=</th><th>Добавлен</th><th></th></tr>
+    <tbody id="custom-domains-rows">
+    {% for d in custom_domains %}
+    <tr>
+      <td>{{ d.domain }}</td>
+      <td>{{ d.profile }}</td>
+      <td>{{ d.strategy }}</td>
+      <td>{{ d.created }}</td>
+      <td>
+        <form method="post" action="/domains/custom/remove" class="inline"
+              onsubmit="return confirm('Убрать ' + {{ d.domain | tojson }} + ' из кастомного профиля ' + {{ d.profile | tojson }} + '? Хостлист опустошается (блок в конфиге остаётся, но перестаёт что-либо матчить).');">
+          <input type="hidden" name="profile" value="{{ profile }}">
+          <input type="hidden" name="domain" value="{{ d.domain }}">
+          <button type="submit">удалить</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5" class="muted">Пока пусто — добавь домен через форму выше.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
 {% endblock %}
