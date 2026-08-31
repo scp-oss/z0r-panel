@@ -315,6 +315,30 @@ convention.
      `DS_TLS`) since they all render through the same `domains.html`
      block, which is exactly why "для всех вкладок" needed zero
      per-profile special-casing.
+- **Real bug surfaced immediately by the new sync-path feature, same
+  day**: syncing `YT_QUIC_UDP` via the official "Синхронизировать"
+  button reported "Синхронизировано 11" but the table stayed empty
+  ("но в списке не появилось"). Root cause was one level below this
+  panel — `domain_pool`'s `UNIQUE KEY (host, path)` in Zenith's schema
+  was GLOBAL, not per-profile, and `get_or_create_domain()`'s `INSERT
+  ... ON DUPLICATE KEY UPDATE` matched by `(host, path)` alone, leaving
+  `profile_hint` on the existing row untouched — so every YT_QUIC_UDP
+  domain that also existed under YT_TLS (real, expected overlap:
+  `russia-youtube.txt`/`russia-youtubeQ.txt` share hosts by design)
+  silently stayed tagged to YT_TLS and never appeared under
+  YT_QUIC_UDP's own list, even though `_add_one_domain()` on this side
+  reported every row as successfully added. Fixed in `scp-oss/Zenith`
+  (`db/migrations/006_domain_pool_unique_per_profile.sql` +
+  `schema.sql`): unique key rescoped to `(profile_hint, host, path)`, so
+  the same host can now independently exist once per profile. No change
+  needed on the panel side — `get_or_create_domain()` already passed
+  `profile_hint` in its `INSERT`, it just needed a constraint that
+  actually looked at it. **Requires running that migration against the
+  live `z2r_genome` MySQL DB before a re-sync will actually populate
+  YT_QUIC_UDP's list** — see that migration file's own header for the
+  exact `docker compose exec` command (MySQL runs in a container on the
+  panel host, see "MySQL on that host runs in Docker" elsewhere in this
+  file).
 
 ## Restart buttons on `/controls/automation` (since 2026-08-31)
 
