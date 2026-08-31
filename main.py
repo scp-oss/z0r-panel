@@ -927,7 +927,7 @@ def controls_autoupdate_toggle(
     project: str = Form(...), enabled: str = Form(...),
 ):
     """Переключает автообновление для ОДНОГО проекта -- пишет тот же
-    /etc/z2r_autobench/autoupdate.conf, что читает и z0r пункт 24 (см.
+    /etc/z2r_autobench/autoupdate.conf, что читает и z0r пункт 25 (см.
     autoupdate_ctl.py). Если таймер ещё не установлен на этом сервере,
     флаг всё равно пишется (пригодится, когда таймер поставят через
     z0r) -- страница явно это подскажет через autoupdate_timer_status."""
