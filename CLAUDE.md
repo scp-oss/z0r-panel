@@ -193,3 +193,16 @@ convention.
   several real YouTube domains" — the honest answer was that
   `domain_pool` for YT_TLS only ever had one row, and the only UI to add
   more (`/rkn`) was scoped to the wrong profile entirely.
+- **"Синхронизировать" button** (`/domains/sync`) — for profiles that
+  have one, reads a real official curated domain list already sitting on
+  the server (`z2r_autobench/domain_list_sync.sh`, e.g.
+  `/opt/zator/lists/russia-youtube.txt`) instead of asking a human to
+  copy-paste. `sync_available` in the template context comes from
+  actually asking the CLI (`--list-profiles`) which profiles it knows
+  about, not a second hardcoded list here — the CLI's own dict is the
+  one place that mapping lives, avoiding yet another instance of the
+  "same fact duplicated in two files, one goes stale" class of bug this
+  whole engagement keeps running into (see z2r_autobench's CLAUDE.md
+  `/opt/zapret2` vs `/opt/zator` saga for the fullest writeup of that
+  pattern). Feeds through the exact same `get_or_create_domain()` as
+  manual/bulk add — no separate "came from sync" bookkeeping.

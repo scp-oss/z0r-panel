@@ -23,6 +23,23 @@
 {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
 {% if ok %}<div class="flash">{{ ok }}</div>{% endif %}
 
+{% if sync_available %}
+<div class="card">
+  <h3>Синхронизировать с официальным списком ({{ profile }})</h3>
+  <p class="muted" style="margin-top:0">
+    Для этого профиля на сервере есть готовый курированный список (напр.
+    <code>/opt/zator/lists/russia-youtube.txt</code>) — не нужно копировать
+    вручную, забирает домены прямо оттуда. Уже добавленные домены не
+    дублирует.
+  </p>
+  <form method="post" action="/domains/sync" class="form-row">
+    <input type="hidden" name="profile" value="{{ profile }}">
+    <input type="number" name="min_bytes" value="65536" min="1" style="width:110px" title="минимальный размер ответа в байтах для всех добавленных доменов">
+    <button type="submit">синхронизировать</button>
+  </form>
+</div>
+{% endif %}
+
 <div class="card">
   <h3>Добавить тестовый домен ({{ profile }})</h3>
   <form method="post" action="/domains/add" class="form-row">

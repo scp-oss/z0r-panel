@@ -509,6 +509,17 @@ def rkn_page(
 DOMAIN_LIST_PROFILES = ["YT_TLS", "GV_TLS", "RKN_TLS", "DS_TLS", "FB_TLS", "FB_HTTP"]
 
 
+def _run_domain_sync_cli(*args) -> tuple[str | None, str | None, int]:
+    try:
+        out = subprocess.run(
+            ["sudo", "-n", "bash", config.DOMAIN_LIST_SYNC_CLI, *args],
+            capture_output=True, text=True, timeout=15,
+        )
+    except Exception as e:
+        return None, str(e), 1
+    return out.stdout, out.stderr, out.returncode
+
+
 @app.get("/domains")
 def domains_page(
     request: Request, user: str = Depends(auth.require_login),
@@ -530,13 +541,54 @@ def domains_page(
         domains = db.list_domains_for_profile(conn, profile)
     finally:
         conn.close()
+
+    # Список профилей, для которых есть готовый официальный курированный
+    # список на диске (см. domain_list_sync.sh -- источник правды ТАМ,
+    # не дублируем маппинг профиль->файл здесь второй раз) -- определяет,
+    # показывать ли кнопку "Синхронизировать" вместо/вместе с ручным вводом.
+    sync_out, _, sync_rc = _run_domain_sync_cli("--list-profiles")
+    sync_profiles = {p.strip() for p in (sync_out or "").splitlines() if p.strip()} if sync_rc == 0 else set()
+
     return templates.TemplateResponse(
         request, "domains.html",
         {
             "user": user, "profile": profile, "profiles": DOMAIN_LIST_PROFILES,
             "domains": domains, "error": error, "ok": ok,
+            "sync_available": profile in sync_profiles,
         },
     )
+
+
+@app.post("/domains/sync")
+def domains_sync(
+    request: Request, user: str = Depends(auth.require_login),
+    profile: str = Form(...), min_bytes: int = Form(65536),
+):
+    """Читает официальный курированный список (напр.
+    /opt/zator/lists/russia-youtube.txt для YT_TLS) через
+    domain_list_sync.sh и заводит недостающие домены в domain_pool через
+    тот же get_or_create_domain, что и ручное/bulk добавление -- идемпотентно,
+    уже существующие строки не дублирует и не трогает (get_or_create_domain
+    сама так устроена, см. её вызовы выше)."""
+    if profile not in DOMAIN_LIST_PROFILES:
+        return RedirectResponse(url="/domains?error=Неизвестный+профиль", status_code=303)
+    out, err, rc = _run_domain_sync_cli(profile)
+    if rc != 0:
+        msg = (err or "").strip() or f"domain_list_sync.sh завершился с кодом {rc}"
+        return RedirectResponse(url=f"/domains?profile={profile}&error={quote(msg)}", status_code=303)
+    count = 0
+    conn = db.connect()
+    try:
+        for line in (out or "").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            if _add_one_domain(conn, profile, line, min_bytes):
+                count += 1
+        conn.commit()
+    finally:
+        conn.close()
+    return RedirectResponse(url=f"/domains?profile={profile}&ok=Синхронизировано+{count}", status_code=303)
 
 
 def _add_one_domain(conn, profile: str, raw: str, min_bytes: int) -> bool:
