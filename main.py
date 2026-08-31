@@ -533,7 +533,7 @@ def _run_domain_sync_cli(*args) -> tuple[str | None, str | None, int]:
 
 
 def _domains_full_context(
-    user: str, profile: str, error: str = "", ok: str = "",
+    user: str, profile: str, error: str = "", ok: str = "", view: str = "profiles",
     custom_message: str | None = None, custom_message_is_error: bool = False,
     custom_preview_domain: str | None = None,
 ) -> dict:
@@ -552,7 +552,16 @@ def _domains_full_context(
     кастомные домены можно перенести в Домены для подбора стратегий"):
     концептуально оба про "домены для подбора стратегий", просто разными
     механизмами (общий domain_pool под Zenith vs. свой профиль/стратегия
-    на домен через custom_domain_cli.sh) -- не два разных пункта меню."""
+    на домен через custom_domain_cli.sh) -- не два разных пункта меню.
+
+    view -- "profiles" (по умолчанию) или "custom": какая из двух секций
+    реально видна (шаблон прячет другую через {% if %}, не просто якорь
+    вниз страницы) -- добавлено следом же, 2026-08-31, по фидбэку "нужно
+    чтоб был как отдельная вкладка, снизу его убрать" (первая версия
+    слияния держала обе секции видимыми одновременно на одной длинной
+    странице, это и не понравилось)."""
+    if view != "custom":
+        view = "profiles"
     if profile not in DOMAIN_LIST_PROFILES:
         profile = "YT_TLS"
     conn = db.connect()
@@ -570,7 +579,7 @@ def _domains_full_context(
 
     context = {
         "user": user, "profile": profile, "profiles": DOMAIN_LIST_PROFILES,
-        "domains": domains, "error": error, "ok": ok,
+        "domains": domains, "error": error, "ok": ok, "view": view,
         "sync_available": profile in sync_profiles,
     }
     context.update(_custom_domains_section(custom_message, custom_message_is_error, custom_preview_domain))
@@ -580,9 +589,9 @@ def _domains_full_context(
 @app.get("/domains")
 def domains_page(
     request: Request, user: str = Depends(auth.require_login),
-    profile: str = "YT_TLS", error: str = "", ok: str = "",
+    profile: str = "YT_TLS", view: str = "profiles", error: str = "", ok: str = "",
 ):
-    return templates.TemplateResponse(request, "domains.html", _domains_full_context(user, profile, error, ok))
+    return templates.TemplateResponse(request, "domains.html", _domains_full_context(user, profile, error, ok, view))
 
 
 @app.post("/domains/sync")
@@ -599,6 +608,43 @@ def domains_sync(
     if profile not in DOMAIN_LIST_PROFILES:
         return RedirectResponse(url="/domains?error=Неизвестный+профиль", status_code=303)
     out, err, rc = _run_domain_sync_cli(profile)
+    if rc != 0:
+        msg = (err or "").strip() or f"domain_list_sync.sh завершился с кодом {rc}"
+        return RedirectResponse(url=f"/domains?profile={profile}&error={quote(msg)}", status_code=303)
+    count = 0
+    conn = db.connect()
+    try:
+        for line in (out or "").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            if _add_one_domain(conn, profile, line, min_bytes):
+                count += 1
+        conn.commit()
+    finally:
+        conn.close()
+    return RedirectResponse(url=f"/domains?profile={profile}&ok=Синхронизировано+{count}", status_code=303)
+
+
+@app.post("/domains/sync-path")
+def domains_sync_path(
+    request: Request, user: str = Depends(auth.require_login),
+    profile: str = Form(...), path: str = Form(...), min_bytes: int = Form(65536),
+):
+    """Ad-hoc альтернатива кнопке "Синхронизировать" выше -- для профиля
+    без заранее прописанного в domain_list_sync.sh файла, или просто
+    другого/более свежего списка. Живой повод: пользователь пытался
+    вставить сам путь к файлу (/opt/zator/lists/russia-youtubeQ.txt) в
+    обычное поле "добавить домен" и закономерно получил "Пустой домен" --
+    то поле парсит host[/path], а не путь на диске. domain_list_sync.sh
+    --path сам ограничивает чтение каталогом $Z2R_BASE/lists/ (см. его
+    докстринг) -- путь вне этого каталога отклоняет СКРИПТ, не панель."""
+    if profile not in DOMAIN_LIST_PROFILES:
+        return RedirectResponse(url="/domains?error=Неизвестный+профиль", status_code=303)
+    path = path.strip()
+    if not path:
+        return RedirectResponse(url=f"/domains?profile={profile}&error=Пустой+путь", status_code=303)
+    out, err, rc = _run_domain_sync_cli("--path", path)
     if rc != 0:
         msg = (err or "").strip() or f"domain_list_sync.sh завершился с кодом {rc}"
         return RedirectResponse(url=f"/domains?profile={profile}&error={quote(msg)}", status_code=303)
@@ -689,6 +735,28 @@ def domains_delete(
     finally:
         conn.close()
     return RedirectResponse(url=f"/domains?profile={profile}", status_code=303)
+
+
+@app.post("/domains/bulk-delete")
+def domains_bulk_delete(
+    request: Request, user: str = Depends(auth.require_login),
+    profile: str = Form(...), domain_ids: list[int] = Form(default=[]),
+):
+    """Массовое удаление -- та же кнопка "удалить" на каждой строке плюс
+    чекбоксы и одна форма-обёртка вокруг всей таблицы (см. domains.html --
+    formaction на отдельных кнопках переопределяет action только для
+    своего клика, вложенные <form> внутри <form> так не сделать).
+    Подтверждение -- на стороне JS (confirmBulkDelete), не здесь: то же
+    разделение ответственности, что и у одиночного /delete."""
+    if profile not in DOMAIN_LIST_PROFILES:
+        profile = "YT_TLS"
+    conn = db.connect()
+    try:
+        for did in domain_ids:
+            db.delete_domain(conn, did)
+    finally:
+        conn.close()
+    return RedirectResponse(url=f"/domains?profile={profile}&ok=Удалено+{len(domain_ids)}", status_code=303)
 
 
 @app.post("/rkn/add-production")
@@ -796,7 +864,7 @@ def domains_custom_preview(
     out, err, rc = _run_custom_domain_cli("add", domain)
     text = (err or "").strip() or (out or "").strip()
     ctx = _domains_full_context(
-        user, profile, custom_message=text, custom_message_is_error=(rc != 0),
+        user, profile, view="custom", custom_message=text, custom_message_is_error=(rc != 0),
         custom_preview_domain=domain if rc == 0 else None,
     )
     return templates.TemplateResponse(request, "domains.html", ctx)
@@ -813,7 +881,7 @@ def domains_custom_add(
     напоминание в самом тексте ответа скрипта), панель его не делает."""
     out, err, rc = _run_custom_domain_cli("add", domain, "--yes")
     text = (err or "").strip() or (out or "").strip()
-    ctx = _domains_full_context(user, profile, custom_message=text, custom_message_is_error=(rc != 0))
+    ctx = _domains_full_context(user, profile, view="custom", custom_message=text, custom_message_is_error=(rc != 0))
     return templates.TemplateResponse(request, "domains.html", ctx)
 
 
@@ -829,7 +897,7 @@ def domains_custom_remove(
     безвредным."""
     out, err, rc = _run_custom_domain_cli("remove", domain)
     text = (err or "").strip() or (out or "").strip()
-    ctx = _domains_full_context(user, profile, custom_message=text, custom_message_is_error=(rc != 0))
+    ctx = _domains_full_context(user, profile, view="custom", custom_message=text, custom_message_is_error=(rc != 0))
     return templates.TemplateResponse(request, "domains.html", ctx)
 
 

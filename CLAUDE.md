@@ -183,6 +183,23 @@ convention.
   ever hit via the (now-updated) form `action=`, never linked/bookmarked
   directly. `templates/custom_domains.html` deleted (fully absorbed into
   `domains.html`).
+- **First version above (anchor-scroll to `#custom-domains-section`) was
+  wrong, corrected same day**: direct feedback with a screenshot (arrow
+  from the empty space in the profile tab row down to the "Кастомные
+  домены" heading at the very bottom of the page) — "нужно чтоб был как
+  отдельная вкладка, снизу его убрать" (needs to be like a separate tab,
+  remove it from the bottom). Both sections stacked on one long page with
+  a jump-link was NOT what "merge the tab in" meant. Fixed with a real
+  `view` param (`"profiles"` default, `"custom"`) threaded through
+  `_domains_full_context()`/`domains_page()`/all three
+  `/domains/custom/*` handlers (which now always pass `view="custom"`
+  when re-rendering) — `domains.html` wraps the per-profile section in
+  `{% if view != 'custom' %}` and the custom section in
+  `{% if view == 'custom' %}`, so exactly one is ever in the DOM at once,
+  same as switching a real tab. The "Кастомные домены" nav link is now
+  `/domains?view=custom&profile={{ profile }}` (carries the current
+  profile along so switching back later lands on the right one) instead
+  of a bare `#anchor`.
 
 ## `/domains` — per-profile test domain_pool, split out of `/rkn` (since 2026-08-31)
 
@@ -258,6 +275,46 @@ convention.
   the file's own header comment) so the "Синхронизировать" button appears
   for this tab too, same as it already does for `YT_TLS`/`DS_TLS` — the
   add-domain field was never meant to take a filesystem path, sync is.
+- **Three more asks landed the same day, same request** ("не до конца
+  понял как добавлять путь до списка — сделай так добавить список либо
+  путь к нему либо из буфера обмена, плюс удалить домены но с
+  подтверждением, для всех вкладок"):
+  1. **`/domains/sync-path`** — a second, ad-hoc sync form (always
+     visible, unlike the "Синхронизировать" button which only shows for
+     profiles `domain_list_sync.sh --list-profiles` already knows about)
+     that takes a `path` field: either a bare filename (resolved against
+     `$Z2R_BASE/lists/`) or a full path. Backed by `domain_list_sync.sh
+     --path` (see that script's own CLAUDE.md entry) — the panel does
+     not validate the path itself, it just forwards to the script and
+     shows back whatever it says; the script is the one enforcing the
+     path stays inside `$Z2R_BASE/lists/` after `realpath` resolution.
+     Same ingestion loop as `/domains/sync` (`_add_one_domain` +
+     `get_or_create_domain`, idempotent).
+  2. **"вставить из буфера" button** next to the bulk-add textarea —
+     pure client-side `navigator.clipboard.readText()` (`pasteClipboard()`
+     in `domains.html`), no new route. Wrapped in try/catch since
+     clipboard read needs HTTPS + a user gesture + browser permission —
+     on failure shows an `alert()` instead of silently doing nothing.
+  3. **Bulk delete with checkboxes**, `/domains/bulk-delete` — the
+     per-profile `domain_pool` table's `<table>` is now wrapped in ONE
+     `<form id="domains-table-form">` (a `profile` hidden field, no
+     `action=`) instead of one `<form>` per row. Each row's existing
+     single "удалить" button uses `formaction="/domains/{{d.id}}/delete"`
+     to submit to its own endpoint from inside that shared form (HTML5
+     lets a submit button override just its own click's action/method —
+     avoids nesting `<form>` inside `<form>`, which browsers handle
+     inconsistently). A new header checkbox + "удалить выбранные" button
+     (`formaction="/domains/bulk-delete"`) select-all/submit the checked
+     `domain_ids[]`. Confirmation is JS-side for both paths
+     (`confirm()` on the single-row button's `onclick`, same as before;
+     `confirmBulkDelete()` reads the checked count first and refuses with
+     an `alert()` if nothing's selected, so it can't fire on an accidental
+     empty click). This lives in the per-profile section only (not the
+     "Кастомные домены" one) — automatically applies to every profile in
+     `DOMAIN_LIST_PROFILES` (`YT_TLS`/`GV_TLS`/`YT_QUIC_UDP`/`RKN_TLS`/
+     `DS_TLS`) since they all render through the same `domains.html`
+     block, which is exactly why "для всех вкладок" needed zero
+     per-profile special-casing.
 
 ## Restart buttons on `/controls/automation` (since 2026-08-31)
 

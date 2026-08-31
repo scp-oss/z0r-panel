@@ -15,14 +15,16 @@
 
 <nav class="quicknav">
   {% for p in profiles %}
-  <a href="/domains?profile={{ p }}"{% if p == profile %} class="active"{% endif %}>{{ p }}</a>
+  <a href="/domains?profile={{ p }}"{% if view != 'custom' and p == profile %} class="active"{% endif %}>{{ p }}</a>
   {% endfor %}
   <span class="muted">|</span>
-  <a href="#custom-domains-section">Кастомные домены</a>
+  <a href="/domains?view=custom&profile={{ profile }}"{% if view == 'custom' %} class="active"{% endif %}>Кастомные домены</a>
 </nav>
 
 {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
 {% if ok %}<div class="flash">{{ ok }}</div>{% endif %}
+
+{% if view != 'custom' %}
 
 {% if sync_available %}
 <div class="card">
@@ -42,6 +44,24 @@
 {% endif %}
 
 <div class="card">
+  <h3>Синхронизировать по пути к файлу ({{ profile }})</h3>
+  <p class="muted" style="margin-top:0">
+    Если для профиля нет готовой кнопки выше (или нужен другой файл) —
+    можно указать путь на сервере вручную. Разрешены только файлы внутри
+    официального каталога курированных списков (<code>lists/</code> в
+    установке z2r) — либо просто имя файла оттуда (например
+    <code>russia-youtubeQ.txt</code>), либо полный путь; путь снаружи
+    этого каталога скрипт сам отклонит.
+  </p>
+  <form method="post" action="/domains/sync-path" class="form-row">
+    <input type="hidden" name="profile" value="{{ profile }}">
+    <input type="text" name="path" placeholder="russia-youtubeQ.txt или /opt/zator/lists/russia-youtubeQ.txt" style="width:340px">
+    <input type="number" name="min_bytes" value="65536" min="1" style="width:110px" title="минимальный размер ответа в байтах для всех добавленных доменов">
+    <button type="submit">загрузить</button>
+  </form>
+</div>
+
+<div class="card">
   <h3>Добавить тестовый домен ({{ profile }})</h3>
   <form method="post" action="/domains/add" class="form-row">
     <input type="hidden" name="profile" value="{{ profile }}">
@@ -53,62 +73,63 @@
     <summary class="muted" style="cursor:pointer">Добавить сразу списком (по домену на строку)</summary>
     <form method="post" action="/domains/bulk-add" class="form-row" style="margin-top:8px; align-items:flex-start">
       <input type="hidden" name="profile" value="{{ profile }}">
-      <textarea name="domains" rows="6" style="width:280px; font-family:monospace" placeholder="youtube.com&#10;youtubei.googleapis.com&#10;ytimg.com&#10;..." required></textarea>
-      <input type="number" name="min_bytes" value="65536" min="1" style="width:110px" title="минимальный размер ответа в байтах для всех строк">
-      <button type="submit">добавить список</button>
+      <textarea id="bulk-add-textarea" name="domains" rows="6" style="width:280px; font-family:monospace" placeholder="youtube.com&#10;youtubei.googleapis.com&#10;ytimg.com&#10;..." required></textarea>
+      <div style="display:flex; flex-direction:column; gap:6px">
+        <button type="button" onclick="pasteClipboard('bulk-add-textarea')">вставить из буфера</button>
+        <input type="number" name="min_bytes" value="65536" min="1" style="width:110px" title="минимальный размер ответа в байтах для всех строк">
+        <button type="submit">добавить список</button>
+      </div>
     </form>
   </details>
 </div>
 
-<div class="card" style="padding-bottom:8px">
-  <input type="text" id="domains-search" placeholder="Поиск…" style="width:100%; margin-bottom:10px" oninput="filterRows('domains-search','domains-rows')">
-  <div class="table-wrap scroll-box">
-  <table>
-    <tr><th>Host</th><th>Path</th><th>min_bytes</th><th>Последняя проверка</th><th>Подряд неудач</th><th>Карантин до</th><th>Добавлен</th><th></th></tr>
-    <tbody id="domains-rows">
-    {% for d in domains %}
-    <tr {% if d.quarantined_until %}style="opacity:0.5"{% endif %}>
-      <td>{{ d.host }}</td>
-      <td class="mono">{{ d.path }}</td>
-      <td>{{ d.min_bytes }}</td>
-      <td>
-        {% if d.last_verified_at %}
-          {{ d.last_verified_at }}
-          {% if d.last_verified_ok %}<span class="pill ok">ok</span>{% else %}<span class="pill warn">fail</span>{% endif %}
-        {% else %}<span class="muted">ещё не проверялся</span>{% endif %}
-      </td>
-      <td>{{ d.consecutive_fail }}</td>
-      <td>{% if d.quarantined_until %}<span class="pill warn">{{ d.quarantined_until }}</span>{% else %}—{% endif %}</td>
-      <td>{{ d.added_at }}</td>
-      <td>
-        <form method="post" action="/domains/{{ d.id }}/delete" class="inline"
-              onsubmit="return confirm('Удалить тестовый домен ' + {{ d.host | tojson }} + ' (' + {{ profile | tojson }} + ') из domain_pool? Не влияет на боевой трафик, необратимо.');">
-          <input type="hidden" name="profile" value="{{ profile }}">
-          <button type="submit">удалить</button>
-        </form>
-      </td>
-    </tr>
-    {% else %}
-    <tr><td colspan="8" class="muted">Пока пусто — добавь домен через форму выше.</td></tr>
-    {% endfor %}
-    </tbody>
-  </table>
+<form method="post" id="domains-table-form">
+  <input type="hidden" name="profile" value="{{ profile }}">
+  <div class="card" style="padding-bottom:8px">
+    <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px">
+      <input type="text" id="domains-search" placeholder="Поиск…" style="flex:1" oninput="filterRows('domains-search','domains-rows')">
+      <button type="submit" formaction="/domains/bulk-delete" formmethod="post"
+              onclick="return confirmBulkDelete('domains-rows')">удалить выбранные</button>
+    </div>
+    <div class="table-wrap scroll-box">
+    <table>
+      <tr>
+        <th><input type="checkbox" onclick="toggleAllChecks('domains-rows', this.checked)" title="выбрать все"></th>
+        <th>Host</th><th>Path</th><th>min_bytes</th><th>Последняя проверка</th><th>Подряд неудач</th><th>Карантин до</th><th>Добавлен</th><th></th>
+      </tr>
+      <tbody id="domains-rows">
+      {% for d in domains %}
+      <tr {% if d.quarantined_until %}style="opacity:0.5"{% endif %}>
+        <td><input type="checkbox" name="domain_ids" value="{{ d.id }}"></td>
+        <td>{{ d.host }}</td>
+        <td class="mono">{{ d.path }}</td>
+        <td>{{ d.min_bytes }}</td>
+        <td>
+          {% if d.last_verified_at %}
+            {{ d.last_verified_at }}
+            {% if d.last_verified_ok %}<span class="pill ok">ok</span>{% else %}<span class="pill warn">fail</span>{% endif %}
+          {% else %}<span class="muted">ещё не проверялся</span>{% endif %}
+        </td>
+        <td>{{ d.consecutive_fail }}</td>
+        <td>{% if d.quarantined_until %}<span class="pill warn">{{ d.quarantined_until }}</span>{% else %}—{% endif %}</td>
+        <td>{{ d.added_at }}</td>
+        <td>
+          <button type="submit" formaction="/domains/{{ d.id }}/delete" formmethod="post"
+                  onclick="return confirm('Удалить тестовый домен ' + {{ d.host | tojson }} + ' (' + {{ profile | tojson }} + ') из domain_pool? Не влияет на боевой трафик, необратимо.');">удалить</button>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9" class="muted">Пока пусто — добавь домен через форму выше.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
   </div>
-</div>
+</form>
 
-<script>
-function filterRows(inputId, tbodyId) {
-  var q = document.getElementById(inputId).value.trim().toLowerCase();
-  var tbody = document.getElementById(tbodyId);
-  var rows = tbody.getElementsByTagName("tr");
-  for (var i = 0; i < rows.length; i++) {
-    var match = !q || rows[i].textContent.toLowerCase().indexOf(q) !== -1;
-    rows[i].style.display = match ? "" : "none";
-  }
-}
-</script>
+{% else %}
 
-<h2 id="custom-domains-section" style="margin-top:32px">Кастомные домены</h2>
+<h2>Кастомные домены</h2>
 <p class="muted">
   Другой механизм, не <code>domain_pool</code> выше: отдельно от
   <a href="/rkn">РКН списка</a> — там у ВСЕХ доменов ОДНА общая стратегия
@@ -179,4 +200,34 @@ function filterRows(inputId, tbodyId) {
   </table>
   </div>
 </div>
+
+{% endif %}
+
+<script>
+function filterRows(inputId, tbodyId) {
+  var q = document.getElementById(inputId).value.trim().toLowerCase();
+  var tbody = document.getElementById(tbodyId);
+  var rows = tbody.getElementsByTagName("tr");
+  for (var i = 0; i < rows.length; i++) {
+    var match = !q || rows[i].textContent.toLowerCase().indexOf(q) !== -1;
+    rows[i].style.display = match ? "" : "none";
+  }
+}
+function toggleAllChecks(tbodyId, checked) {
+  document.querySelectorAll("#" + tbodyId + " input[type=checkbox]").forEach(function (cb) { cb.checked = checked; });
+}
+function confirmBulkDelete(tbodyId) {
+  var n = document.querySelectorAll("#" + tbodyId + " input[type=checkbox]:checked").length;
+  if (n === 0) { alert("Сначала отметь домены галочками."); return false; }
+  return confirm("Удалить выбранные домены (" + n + ") из domain_pool? Не влияет на боевой трафик, необратимо.");
+}
+async function pasteClipboard(textareaId) {
+  try {
+    var text = await navigator.clipboard.readText();
+    document.getElementById(textareaId).value = text;
+  } catch (e) {
+    alert("Не удалось прочитать буфер обмена (нужны HTTPS и разрешение браузера): " + e);
+  }
+}
+</script>
 {% endblock %}
