@@ -807,6 +807,8 @@ def _controls_context(
     autorun_error: str | None = None, promoter_error: str | None = None,
     autoupdate_error: str | None = None, autoupdate_ok: str | None = None,
     funnel_error: str | None = None,
+    daemon_update_status: str | None = None, autorun_update_status: str | None = None,
+    promoter_update_status: str | None = None,
 ) -> dict:
     conn = db.connect()
     try:
@@ -845,6 +847,9 @@ def _controls_context(
         "autoupdate_error": autoupdate_error,
         "autoupdate_ok": autoupdate_ok,
         "funnel_error": funnel_error,
+        "daemon_update_status": daemon_update_status,
+        "autorun_update_status": autorun_update_status,
+        "promoter_update_status": promoter_update_status,
     }
 
 
@@ -1021,6 +1026,12 @@ def controls_daemon_status(user: str = Depends(auth.require_login)):
     return {"active": daemon_ctl.autotune_daemon.is_active(), "log": daemon_ctl.autotune_daemon.log_tail()}
 
 
+@app.post("/controls/daemon/check-updates")
+def controls_daemon_check_updates(request: Request, user: str = Depends(auth.require_login)):
+    status = daemon_ctl.check_git_updates(config.Z2R_AUTOBENCH_DIR)
+    return templates.TemplateResponse(request, "automation.html", _controls_context(user, daemon_update_status=status))
+
+
 @app.post("/controls/zenith-autorun/start")
 def controls_zenith_autorun_start(request: Request, user: str = Depends(auth.require_login)):
     error = daemon_ctl.zenith_autorun.start()
@@ -1044,6 +1055,12 @@ def controls_zenith_autorun_status(user: str = Depends(auth.require_login)):
     return {"active": daemon_ctl.zenith_autorun.is_active(), "log": daemon_ctl.zenith_autorun.log_tail()}
 
 
+@app.post("/controls/zenith-autorun/check-updates")
+def controls_zenith_autorun_check_updates(request: Request, user: str = Depends(auth.require_login)):
+    status = daemon_ctl.check_git_updates(config.ZENITH_DIR)
+    return templates.TemplateResponse(request, "automation.html", _controls_context(user, autorun_update_status=status))
+
+
 @app.post("/controls/zenith-promoter/start")
 def controls_zenith_promoter_start(request: Request, user: str = Depends(auth.require_login)):
     error = daemon_ctl.zenith_promoter.start()
@@ -1065,6 +1082,12 @@ def controls_zenith_promoter_restart(request: Request, user: str = Depends(auth.
 @app.get("/controls/zenith-promoter/status")
 def controls_zenith_promoter_status(user: str = Depends(auth.require_login)):
     return {"active": daemon_ctl.zenith_promoter.is_active(), "log": daemon_ctl.zenith_promoter.log_tail()}
+
+
+@app.post("/controls/zenith-promoter/check-updates")
+def controls_zenith_promoter_check_updates(request: Request, user: str = Depends(auth.require_login)):
+    status = daemon_ctl.check_git_updates(config.ZENITH_DIR)
+    return templates.TemplateResponse(request, "automation.html", _controls_context(user, promoter_update_status=status))
 
 
 @app.post("/controls/autoupdate/toggle")

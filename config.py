@@ -160,6 +160,10 @@ DOMAIN_LIST_SYNC_CLI = os.path.join(Z2R_AUTOBENCH_DIR, "domain_list_sync.sh")
 # main.py --profile ...").
 ZENITH_ORCHESTRATOR_DIR = _get("ZENITH_ORCHESTRATOR_DIR", os.path.join(Z2R_AUTOBENCH_DIR, "Zenith", "orchestrator"))
 ZENITH_VENV_PYTHON = _get("ZENITH_VENV_PYTHON", os.path.join(ZENITH_ORCHESTRATOR_DIR, "venv", "bin", "python3"))
+# Корень git-репозитория Zenith (не orchestrator/ подкаталог) -- нужен
+# только для "проверить обновления" (daemon_ctl.check_git_updates),
+# zenith-autorun/zenith-promoter оба живут в этом репозитории.
+ZENITH_DIR = os.path.dirname(ZENITH_ORCHESTRATOR_DIR)
 
 # Периодический автозапуск и автопродвижение живут как НЕЗАВИСИМЫЕ от
 # панели systemd-юниты (zenith-autorun.service/zenith-promoter.service,

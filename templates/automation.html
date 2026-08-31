@@ -36,8 +36,12 @@
   <form method="post" action="/controls/zenith-autorun/stop" class="inline">
     <button type="submit">остановить</button>
   </form>
+  <form method="post" action="/controls/zenith-autorun/check-updates" class="inline">
+    <button type="submit">проверить обновления</button>
+  </form>
   <p id="zenith-autorun-status" class="muted" style="margin-top:12px">—</p>
   <pre id="zenith-autorun-log" class="mono" style="max-height:300px; overflow:auto; background:#0f1115; border:1px solid #2a2e37; border-radius:6px; padding:10px; white-space:pre-wrap"></pre>
+  {% if autorun_update_status %}<pre class="mono" style="margin-top:10px; background:#0f1115; border:1px solid #2a2e37; border-radius:6px; padding:10px; white-space:pre-wrap">{{ autorun_update_status }}</pre>{% endif %}
 </div>
 
 <div class="card danger-zone" id="sec-promoter">
@@ -67,8 +71,12 @@
   <form method="post" action="/controls/zenith-promoter/stop" class="inline">
     <button type="submit">остановить</button>
   </form>
+  <form method="post" action="/controls/zenith-promoter/check-updates" class="inline">
+    <button type="submit">проверить обновления</button>
+  </form>
   <p id="zenith-promoter-status" class="muted" style="margin-top:12px">—</p>
   <pre id="zenith-promoter-log" class="mono" style="max-height:300px; overflow:auto; background:#0f1115; border:1px solid #2a2e37; border-radius:6px; padding:10px; white-space:pre-wrap"></pre>
+  {% if promoter_update_status %}<pre class="mono" style="margin-top:10px; background:#0f1115; border:1px solid #2a2e37; border-radius:6px; padding:10px; white-space:pre-wrap">{{ promoter_update_status }}</pre>{% endif %}
 </div>
 
 <div class="card" id="sec-daemon">
@@ -89,8 +97,12 @@
   <form method="post" action="/controls/daemon/stop" class="inline">
     <button type="submit">остановить</button>
   </form>
+  <form method="post" action="/controls/daemon/check-updates" class="inline">
+    <button type="submit">проверить обновления</button>
+  </form>
   <p id="daemon-status" class="muted" style="margin-top:12px">—</p>
   <pre id="daemon-log" class="mono" style="max-height:300px; overflow:auto; background:#0f1115; border:1px solid #2a2e37; border-radius:6px; padding:10px; white-space:pre-wrap"></pre>
+  {% if daemon_update_status %}<pre class="mono" style="margin-top:10px; background:#0f1115; border:1px solid #2a2e37; border-radius:6px; padding:10px; white-space:pre-wrap">{{ daemon_update_status }}</pre>{% endif %}
 </div>
 <script>
 function pollServiceStatus(statusUrl, statusElId, logElId) {

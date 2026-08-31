@@ -64,3 +64,29 @@ class SystemdServiceCtl:
 autotune_daemon = SystemdServiceCtl("autotune-daemon")
 zenith_autorun = SystemdServiceCtl("zenith-autorun")
 zenith_promoter = SystemdServiceCtl("zenith-promoter")
+
+
+def check_git_updates(repo_dir: str) -> str:
+    """Read-only: git fetch + сравнение HEAD с origin/main -- НИЧЕГО не
+    применяет (сам git pull делает z0r-скрипт/автообновление, см.
+    z2r_autobench::_check_git_updates, ЭТА функция -- панельный аналог
+    того же самого, специально не дублирующий логику обновления, только
+    показывающий, есть ли смысл её запускать)."""
+    def _run(cmd: list, timeout: int = 15) -> subprocess.CompletedProcess:
+        try:
+            return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        except (OSError, subprocess.TimeoutExpired) as e:
+            return subprocess.CompletedProcess(cmd, 1, "", str(e))
+
+    fetch = _run(["sudo", "-n", "git", "-C", repo_dir, "fetch", "origin", "main"])
+    if fetch.returncode != 0:
+        return f"Не удалось получить origin/main: {(fetch.stderr or fetch.stdout or '').strip()}"
+    count = _run(["sudo", "-n", "git", "-C", repo_dir, "rev-list", "--count", "HEAD..origin/main"])
+    behind = (count.stdout or "").strip()
+    if not behind.isdigit():
+        return f"Не удалось сравнить с origin/main: {(count.stderr or '').strip()}"
+    if behind == "0":
+        return "Актуально — HEAD совпадает с origin/main."
+    log = _run(["sudo", "-n", "git", "-C", repo_dir, "log", "--oneline", "HEAD..origin/main"])
+    log_text = (log.stdout or "").strip()
+    return f"Отстаёт от origin/main на {behind} коммит(ов):\n{log_text}" if log_text else f"Отстаёт от origin/main на {behind} коммит(ов)."

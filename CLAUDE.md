@@ -224,3 +224,31 @@ convention.
   Zenith-TG/web_panel have no panel page at all today, so they only got
   the CLI-side treatment — adding panel pages for those is a separate,
   bigger piece of work than this pass covered.
+
+## "проверить обновления" for the three panel-managed daemons (since 2026-08-31)
+
+- Mirrors a same-day CLI-side change in `z2r_autobench`'s `z0r`
+  (`_check_git_updates()`, wired into its own six modules' restart/stop
+  submenu) — same live request, applied to whichever half of each module
+  already has a panel presence. `daemon_ctl.check_git_updates(repo_dir)`
+  runs the identical three-command sequence
+  (`git fetch origin main` / `rev-list --count HEAD..origin/main` /
+  `log --oneline HEAD..origin/main`) — kept as a separate Python
+  implementation (not a shared script) since it runs in a different
+  process/language than `z0r`'s bash version, but the actual git
+  commands and semantics are deliberately identical so a status message
+  means the same thing regardless of which surface reports it. It is
+  **read-only** — never runs the actual `pull`, that stays `z0r`
+  item 25's (Автообновление) job; this only tells you whether visiting
+  it is worth it.
+- `config.ZENITH_DIR` (new) is the Zenith repo ROOT, not
+  `ZENITH_ORCHESTRATOR_DIR` — `zenith-autorun` and `zenith-promoter`
+  both live in that one repo, so their two "проверить обновления"
+  buttons point at the same directory (checking either gives the
+  identical answer — expected, not a bug). `autotune-daemon`'s button
+  points at `config.Z2R_AUTOBENCH_DIR` instead (this repo's sibling
+  directory, i.e. `z2r_autobench` itself), since that's where
+  autotune-daemon actually lives, not Zenith.
+- Sudoers grant lives in `z2r_autobench`'s `z0r::ensure_panel_runtime_grants`
+  (not here) — three literal `git -C <dir> <verb> ...` lines per repo,
+  no `*` wildcards, matching exactly what `check_git_updates()` invokes.
