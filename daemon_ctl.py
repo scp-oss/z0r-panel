@@ -45,6 +45,14 @@ class SystemdServiceCtl:
         out = self._run(["sudo", "-n", "systemctl", "stop", self.service])
         return None if out.returncode == 0 else (out.stderr.strip() or "systemctl stop завершился с ошибкой")
 
+    def restart(self) -> str | None:
+        """Отдельно от start/stop -- start на уже запущенном юните просто
+        no-op (не циклит процесс), а тут именно нужно перезапустить
+        зависший демон одним кликом, не жать stop+start по очереди (живой
+        запрос 2026-08-31)."""
+        out = self._run(["sudo", "-n", "systemctl", "restart", self.service])
+        return None if out.returncode == 0 else (out.stderr.strip() or "systemctl restart завершился с ошибкой")
+
     def log_tail(self) -> str:
         out = self._run(
             ["sudo", "-n", "journalctl", "-u", self.service, "-n", str(self.log_lines), "--no-pager"],

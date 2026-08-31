@@ -30,6 +30,9 @@
   <form method="post" action="/controls/zenith-autorun/start" class="inline">
     <button type="submit">запустить</button>
   </form>
+  <form method="post" action="/controls/zenith-autorun/restart" class="inline">
+    <button type="submit">рестарт</button>
+  </form>
   <form method="post" action="/controls/zenith-autorun/stop" class="inline">
     <button type="submit">остановить</button>
   </form>
@@ -57,6 +60,10 @@
         onsubmit="return confirm('Включить автопродвижение? Это будет менять боевой /opt/zapret2/config и перезапускать zapret2 БЕЗ подтверждения человека на каждом срабатывании.');">
     <button type="submit" class="danger">запустить</button>
   </form>
+  <form method="post" action="/controls/zenith-promoter/restart" class="inline"
+        onsubmit="return confirm('Перезапустить zenith-promoter? Полезно, если процесс завис — само автопродвижение продолжит работать как обычно после рестарта.');">
+    <button type="submit">рестарт</button>
+  </form>
   <form method="post" action="/controls/zenith-promoter/stop" class="inline">
     <button type="submit">остановить</button>
   </form>
@@ -75,6 +82,9 @@
   {% if daemon_error %}<div class="flash error">{{ daemon_error }}</div>{% endif %}
   <form method="post" action="/controls/daemon/start" class="inline">
     <button type="submit">запустить</button>
+  </form>
+  <form method="post" action="/controls/daemon/restart" class="inline">
+    <button type="submit">рестарт</button>
   </form>
   <form method="post" action="/controls/daemon/stop" class="inline">
     <button type="submit">остановить</button>

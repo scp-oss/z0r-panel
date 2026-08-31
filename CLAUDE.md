@@ -206,3 +206,21 @@ convention.
   `/opt/zapret2` vs `/opt/zator` saga for the fullest writeup of that
   pattern). Feeds through the exact same `get_or_create_domain()` as
   manual/bulk add — no separate "came from sync" bookkeeping.
+
+## Restart buttons on `/controls/automation` (since 2026-08-31)
+
+- `daemon_ctl.SystemdServiceCtl` gained a `.restart()` alongside its
+  existing `.start()`/`.stop()`/`.is_active()`/`.log_tail()` — same
+  narrow `sudo -n systemctl <verb> <unit>` shape, one new sudoers line
+  per unit in `z0r::ensure_panel_runtime_grants` (`restart` added next to
+  each unit's existing start/stop/is-active/journalctl grant, nothing
+  widened beyond that). All three panel-managed units
+  (`autotune_daemon`/`zenith_autorun`/`zenith_promoter`) get a "рестарт"
+  button between start and stop on `automation.html`.
+- This mirrors a parallel CLI-side change in `z2r_autobench`'s `z0r`
+  (uniform restart/stop submenu for every `manage_X()`, see its own
+  CLAUDE.md) — same live request, applied to whichever half of each
+  module already has a panel presence. Discord_bot/DNSCrypt-proxy/
+  Zenith-TG/web_panel have no panel page at all today, so they only got
+  the CLI-side treatment — adding panel pages for those is a separate,
+  bigger piece of work than this pass covered.

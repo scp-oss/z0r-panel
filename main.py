@@ -1010,6 +1010,12 @@ def controls_daemon_stop(request: Request, user: str = Depends(auth.require_logi
     return templates.TemplateResponse(request, "automation.html", _controls_context(user, daemon_error=error))
 
 
+@app.post("/controls/daemon/restart")
+def controls_daemon_restart(request: Request, user: str = Depends(auth.require_login)):
+    error = daemon_ctl.autotune_daemon.restart()
+    return templates.TemplateResponse(request, "automation.html", _controls_context(user, daemon_error=error))
+
+
 @app.get("/controls/daemon/status")
 def controls_daemon_status(user: str = Depends(auth.require_login)):
     return {"active": daemon_ctl.autotune_daemon.is_active(), "log": daemon_ctl.autotune_daemon.log_tail()}
@@ -1027,6 +1033,12 @@ def controls_zenith_autorun_stop(request: Request, user: str = Depends(auth.requ
     return templates.TemplateResponse(request, "automation.html", _controls_context(user, autorun_error=error))
 
 
+@app.post("/controls/zenith-autorun/restart")
+def controls_zenith_autorun_restart(request: Request, user: str = Depends(auth.require_login)):
+    error = daemon_ctl.zenith_autorun.restart()
+    return templates.TemplateResponse(request, "automation.html", _controls_context(user, autorun_error=error))
+
+
 @app.get("/controls/zenith-autorun/status")
 def controls_zenith_autorun_status(user: str = Depends(auth.require_login)):
     return {"active": daemon_ctl.zenith_autorun.is_active(), "log": daemon_ctl.zenith_autorun.log_tail()}
@@ -1041,6 +1053,12 @@ def controls_zenith_promoter_start(request: Request, user: str = Depends(auth.re
 @app.post("/controls/zenith-promoter/stop")
 def controls_zenith_promoter_stop(request: Request, user: str = Depends(auth.require_login)):
     error = daemon_ctl.zenith_promoter.stop()
+    return templates.TemplateResponse(request, "automation.html", _controls_context(user, promoter_error=error))
+
+
+@app.post("/controls/zenith-promoter/restart")
+def controls_zenith_promoter_restart(request: Request, user: str = Depends(auth.require_login)):
+    error = daemon_ctl.zenith_promoter.restart()
     return templates.TemplateResponse(request, "automation.html", _controls_context(user, promoter_error=error))
 
 
