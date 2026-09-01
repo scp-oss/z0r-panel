@@ -1,5 +1,5 @@
 """Пульт для автообновления экосистемы (z2r_autobench/Zenith/z0r-panel/
-Zenith-TG) -- то же самое, что z0r пункт 25, просто кнопками. Состояние
+Zenith-WS) -- то же самое, что z0r пункт 25, просто кнопками. Состояние
 (включено/выключено на проект) живёт в /etc/z2r_autobench/autoupdate.conf
 -- ОДИН файл на CLI и панель, читают/пишут его оба, не дублируют
 состояние отдельно (см. z2r_autobench/autoupdate.sh докстринг).
@@ -14,12 +14,12 @@ AUTOUPDATE_SCRIPT = "/opt/z2r_autobench/autoupdate.sh"
 CONF_PATH = "/etc/z2r_autobench/autoupdate.conf"
 LOG_DIR = "/opt/z2r_autobench/logs/autoupdate"
 
-PROJECTS = ("z2r_autobench", "zenith", "panel", "tgrelay")
+PROJECTS = ("z2r_autobench", "zenith", "panel", "wsrelay")
 PROJECT_LABELS = {
     "z2r_autobench": "z2r_autobench (сам инструмент + autotune-daemon)",
     "zenith": "Zenith (docker compose up -d --build)",
     "panel": "z0r-panel (pip install + systemctl restart zenith-panel)",
-    "tgrelay": "Zenith-TG (pip install + systemctl restart tg-transparent-relay)",
+    "wsrelay": "Zenith-WS (pip install + systemctl restart ws-transparent-relay)",
 }
 
 

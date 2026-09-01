@@ -354,7 +354,7 @@ convention.
   (uniform restart/stop submenu for every `manage_X()`, see its own
   CLAUDE.md) — same live request, applied to whichever half of each
   module already has a panel presence. Discord_bot/DNSCrypt-proxy/
-  Zenith-TG/web_panel have no panel page at all today, so they only got
+  Zenith-WS/web_panel have no panel page at all today, so they only got
   the CLI-side treatment — adding panel pages for those is a separate,
   bigger piece of work than this pass covered.
 
