@@ -930,6 +930,8 @@ def _controls_context(
             "locked": locked, "max": max_strat,
         })
 
+    zenith_commit = daemon_ctl.git_short_commit(config.ZENITH_DIR)
+
     return {
         "user": user, "profile_status": profile_status, "by_profile": by_profile,
         "local_env_name": config.LOCAL_ENVIRONMENT_NAME,
@@ -950,6 +952,9 @@ def _controls_context(
         "daemon_update_status": daemon_update_status,
         "autorun_update_status": autorun_update_status,
         "promoter_update_status": promoter_update_status,
+        "daemon_commit": daemon_ctl.git_short_commit(config.Z2R_AUTOBENCH_DIR),
+        "autorun_commit": zenith_commit,
+        "promoter_commit": zenith_commit,
     }
 
 

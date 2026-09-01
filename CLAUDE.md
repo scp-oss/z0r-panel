@@ -385,3 +385,24 @@ convention.
 - Sudoers grant lives in `z2r_autobench`'s `z0r::ensure_panel_runtime_grants`
   (not here) — three literal `git -C <dir> <verb> ...` lines per repo,
   no `*` wildcards, matching exactly what `check_git_updates()` invokes.
+
+## Current commit shown next to each check-updates button (since 2026-09-01)
+
+- Direct request, mirrored from the same-day `z2r_autobench` CLI change
+  ("рядом в скобках какой коммит сейчас"): `daemon_ctl.git_short_commit
+  (repo_dir)` (new — `sudo -n git -C <dir> rev-parse --short HEAD`,
+  `"?"` on any error) feeds three new `_controls_context()` keys —
+  `daemon_commit` (`config.Z2R_AUTOBENCH_DIR`), `autorun_commit`/
+  `promoter_commit` (both `config.ZENITH_DIR`, so they always show the
+  identical hash — same checkout, not a bug) — shown inline in each
+  card's own `<h3>` on `/controls/automation`, visible on every page
+  load without clicking "проверить обновления" first (that one still
+  needs a real `git fetch`, this one doesn't touch the network at all).
+- Needs the SAME new sudoers line as the CLI side (see
+  `z2r_autobench/CLAUDE.md` "Какой коммит сейчас next to check-updates"):
+  `git -C <dir> rev-parse --short HEAD` for both `Z2R_AUTOBENCH_DIR` and
+  `ZENITH_DIR`, added to `ensure_panel_runtime_grants`'s
+  `sudoers_git_check_cmds`. Until `z0r` item 24 (web_panel) is revisited
+  to regenerate `/etc/sudoers.d/zenith-panel`, these three labels show
+  `?` instead of a real hash — not a bug in this repo's code, just a
+  stale sudoers file on that server.

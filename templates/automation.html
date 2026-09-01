@@ -17,7 +17,7 @@
 </nav>
 
 <div class="card" id="sec-autorun">
-  <h3>zenith-autorun — периодическая генерация кандидатов</h3>
+  <h3>zenith-autorun — периодическая генерация кандидатов <span class="muted mono" style="font-weight:normal">({{ autorun_commit }})</span></h3>
   <p class="muted">
     Независимый systemd-юнит (<code>Zenith/zenith_autorun.sh</code>) — по
     кругу, по одному профилю за раз, запускает то же самое, что кнопка
@@ -45,7 +45,7 @@
 </div>
 
 <div class="card danger-zone" id="sec-promoter">
-  <h3>zenith-promoter — автопродвижение в прод</h3>
+  <h3>zenith-promoter — автопродвижение в прод <span class="muted mono" style="font-weight:normal">({{ promoter_commit }})</span></h3>
   <p class="muted">
     Независимый systemd-юнит (<code>Zenith/orchestrator/auto_promoter.py
     --loop</code>) — критерий тот же, что <code>promote.py</code>
@@ -80,7 +80,7 @@
 </div>
 
 <div class="card" id="sec-daemon">
-  <h3>autotune-daemon</h3>
+  <h3>autotune-daemon <span class="muted mono" style="font-weight:normal">({{ daemon_commit }})</span></h3>
   <p class="muted">
     Фоновая служба (z0r пункт 14) — health-check уже применённой стратегии,
     полный re-tune только после нескольких провалов подряд (см.

@@ -90,3 +90,20 @@ def check_git_updates(repo_dir: str) -> str:
     log = _run(["sudo", "-n", "git", "-C", repo_dir, "log", "--oneline", "HEAD..origin/main"])
     log_text = (log.stdout or "").strip()
     return f"Отстаёт от origin/main на {behind} коммит(ов):\n{log_text}" if log_text else f"Отстаёт от origin/main на {behind} коммит(ов)."
+
+
+def git_short_commit(repo_dir: str) -> str:
+    """Короткий хэш HEAD -- показывается рядом с кнопкой "проверить
+    обновления" на /controls/automation, всегда видно без отдельного
+    клика (в отличие от check_git_updates() выше, которая требует
+    сетевого fetch и печатает только при явном запросе). "?" при любой
+    ошибке (не установлен ещё, sudoers не тот и т.п.) -- не полагается
+    для чего-то критичного, просто информационная метка."""
+    try:
+        out = subprocess.run(
+            ["sudo", "-n", "git", "-C", repo_dir, "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return "?"
+    return (out.stdout or "").strip() or "?"
