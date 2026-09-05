@@ -55,7 +55,7 @@
     доменам профиля (не только статус процесса) и сам откатывает (backup +
     старая стратегия + рестарт), если проверка не прошла. Работает и без
     панели — см.
-    <code>z0r</code> пункт 30 → «Автономный режим» для установки и
+    <code>z0r</code> пункт 14 → 2 → «Автономный режим» для установки и
     обязательной ручной проверки перед первым включением на боевом
     сервере.
   </p>
@@ -82,7 +82,7 @@
 <div class="card" id="sec-daemon">
   <h3>autotune-daemon <span class="muted mono" style="font-weight:normal">({{ daemon_commit }})</span></h3>
   <p class="muted">
-    Фоновая служба (z0r пункт 14) — health-check уже применённой стратегии,
+    Фоновая служба (z0r пункт 12 → 5) — health-check уже применённой стратегии,
     полный re-tune только после нескольких провалов подряд (см.
     <code>autotune_daemon.sh</code>). Кнопки ниже — то же самое
     <code>systemctl start/stop</code>, что и руками из терминала.
@@ -132,12 +132,12 @@ pollServiceStatus("/controls/daemon/status", "daemon-status", "daemon-log");
     подтягивает <code>main</code> каждого включённого проекта и
     перезапускает то, что нужно (<code>docker compose up -d --build</code>
     для Zenith, <code>systemctl restart</code> для остальных). То же самое
-    состояние, что и в <code>z0r</code> пункт 34 — один файл на двоих
+    состояние, что и в <code>z0r</code> пункт 14 → 6 — один файл на двоих
     (<code>/etc/z2r_autobench/autoupdate.conf</code>). Таймер:
     <span class="pill{% if autoupdate_timer_status == 'enabled' %} ok{% elif autoupdate_timer_status not in ('enabled', 'disabled') %} warn{% endif %}">{{ autoupdate_timer_status }}</span>
     {% if autoupdate_timer_status != 'enabled' %}
     — ещё не установлен на этом сервере, включи через <code>z0r</code>
-    пункт 34 (панель сама таймер не ставит).
+    пункт 14 → 6 (панель сама таймер не ставит).
     {% endif %}
   </p>
   {% if autoupdate_error %}<div class="flash error">{{ autoupdate_error }}</div>{% endif %}
