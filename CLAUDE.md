@@ -372,8 +372,9 @@ convention.
   commands and semantics are deliberately identical so a status message
   means the same thing regardless of which surface reports it. It is
   **read-only** — never runs the actual `pull`, that stays `z0r`
-  item 25's (Автообновление) job; this only tells you whether visiting
-  it is worth it.
+  item 34's (Автообновление) job (was item 25 before the 2026-09-05
+  per-profile menu insertion, see z2r_autobench's own CLAUDE.md); this
+  only tells you whether visiting it is worth it.
 - `config.ZENITH_DIR` (new) is the Zenith repo ROOT, not
   `ZENITH_ORCHESTRATOR_DIR` — `zenith-autorun` and `zenith-promoter`
   both live in that one repo, so their two "проверить обновления"
@@ -402,7 +403,8 @@ convention.
   `z2r_autobench/CLAUDE.md` "Какой коммит сейчас next to check-updates"):
   `git -C <dir> rev-parse --short HEAD` for both `Z2R_AUTOBENCH_DIR` and
   `ZENITH_DIR`, added to `ensure_panel_runtime_grants`'s
-  `sudoers_git_check_cmds`. Until `z0r` item 24 (web_panel) is revisited
+  `sudoers_git_check_cmds`. Until `z0r` item 33 (web_panel, was 24
+  before the 2026-09-05 per-profile menu insertion) is revisited
   to regenerate `/etc/sudoers.d/zenith-panel`, these three labels show
   `?` instead of a real hash — not a bug in this repo's code, just a
   stale sudoers file on that server.
