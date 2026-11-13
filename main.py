@@ -211,13 +211,56 @@ def logout(request: Request):
     return RedirectResponse(url="/login", status_code=302)
 
 
+ACTIVITY_DAYS = 30
+ACTIVITY_COLORS = {"YT_TLS": "#e5534b", "GV_TLS": "#f0883e", "RKN_TLS": "#6cb6ff", "DS_TLS": "#986ee2",
+                   "VOICE_UDP": "#57ab5a", "YT_QUIC_UDP": "#c69026", "FB_TLS": "#768390", "FB_HTTP": "#545d68"}
+
+
+def _activity_chart(daily: dict, summary: dict) -> dict:
+    """Готовит SVG-столбики «новые геномы по дням» (стек по профилям) прямо
+    на сервере -- без JS-библиотек. Возвращает словарь для шаблона."""
+    import datetime as _dt
+    today = _dt.date.today()
+    dates = [today - _dt.timedelta(days=i) for i in range(ACTIVITY_DAYS - 1, -1, -1)]
+    profiles = [p for p in ACTIVITY_COLORS if any(k[1] == p for k in daily)] + \
+               sorted({k[1] for k in daily} - set(ACTIVITY_COLORS))
+    totals = [sum(daily.get((str(d), p), 0) for p in profiles) for d in dates]
+    vmax = max(totals + [1])
+    W, H, pad_l, pad_b = 720, 160, 28, 18
+    bw = (W - pad_l) / len(dates)
+    bars = []
+    for i, d in enumerate(dates):
+        y = H - pad_b
+        for p in profiles:
+            n = daily.get((str(d), p), 0)
+            if not n:
+                continue
+            h = (H - pad_b - 6) * n / vmax
+            y -= h
+            bars.append({"x": round(pad_l + i * bw + 1, 1), "y": round(y, 1), "w": round(bw - 2, 1), "h": round(h, 1),
+                         "color": ACTIVITY_COLORS.get(p, "#9aa0ac"), "title": f"{d:%d.%m} {p}: {n}"})
+    labels = [{"x": round(pad_l + i * bw + bw / 2, 1), "text": f"{d:%d.%m}"} for i, d in enumerate(dates) if i % 5 == 0 or i == len(dates) - 1]
+    rows = []
+    for p in list(ACTIVITY_COLORS) + sorted(set(summary) - set(ACTIVITY_COLORS)):
+        r = summary.get(p)
+        if not r:
+            continue
+        stale = r.get("last_new") is not None and (_dt.datetime.now() - r["last_new"]).days >= 3
+        rows.append({**r, "color": ACTIVITY_COLORS.get(p, "#9aa0ac"), "stale": stale})
+    return {"bars": bars, "labels": labels, "W": W, "H": H, "pad_l": pad_l, "pad_b": pad_b, "vmax": vmax,
+            "profiles": [(p, ACTIVITY_COLORS.get(p, "#9aa0ac")) for p in profiles], "rows": rows,
+            "total30": sum(totals), "days": ACTIVITY_DAYS}
+
+
 @app.get("/")
 def overview(request: Request, user: str = Depends(auth.require_login)):
     conn = db.connect()
     try:
         rows = db.overview_rows(conn)
+        activity_daily, activity_summary = db.generation_activity(conn, ACTIVITY_DAYS)
     finally:
         conn.close()
+    activity = _activity_chart(activity_daily, activity_summary)
     # Все 9 профилей, в каноническом порядке (PROFILE_NUMBERS, тот же,
     # что и везде в панели/z0r) -- не только те, для которых уже есть
     # данные. Раньше секции шли в алфавитном порядке SQL-запроса
@@ -254,6 +297,7 @@ def overview(request: Request, user: str = Depends(auth.require_login)):
             "runnable_profiles": set(runner.RUNNABLE_PROFILES),
             "local_env_name": config.LOCAL_ENVIRONMENT_NAME,
             "live_locked": live_locked,
+            "activity": activity,
         },
     )
 
@@ -333,6 +377,19 @@ def force_delete_node(environment_id: int, user: str = Depends(auth.require_logi
     conn = db.connect()
     try:
         db.force_delete_environment(conn, environment_id)
+    finally:
+        conn.close()
+    return RedirectResponse(url="/nodes", status_code=303)
+
+
+@app.post("/nodes/{environment_id}/ip")
+def set_node_ip_route(environment_id: int, ip: str = Form(""), user: str = Depends(auth.require_login)):
+    """Ручная правка IP/хоста ноды (для локальной ноды и нод, которые сейчас
+    не синкаются). Удалённая нода при следующем sync перезапишет своим."""
+    conn = db.connect()
+    try:
+        db.ensure_node_ip_columns(conn)
+        db.set_node_ip(conn, environment_id, ip.strip()[:255], manual=True)
     finally:
         conn.close()
     return RedirectResponse(url="/nodes", status_code=303)

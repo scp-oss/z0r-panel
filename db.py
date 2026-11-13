@@ -133,10 +133,33 @@ def touch_node_sync(conn, environment_id: int):
     cur.execute("UPDATE environments SET last_sync_at=NOW() WHERE id=%s", (environment_id,))
 
 
+def ensure_node_ip_columns(conn):
+    """Идемпотентная миграция: environments.public_ip (+ когда обновлён).
+    Колонки добавлены 2026-11-13 -- панель показывает IP ноды (заблюренным),
+    удалённые ноды обновляют его сами при каждом sync (см. auth.require_node)."""
+    cur = conn.cursor()
+    cur.execute("""SELECT COUNT(*) FROM information_schema.columns
+                   WHERE table_schema = DATABASE() AND table_name = 'environments' AND column_name = 'public_ip'""")
+    if cur.fetchone()[0] == 0:
+        cur.execute("ALTER TABLE environments ADD COLUMN public_ip VARCHAR(255) NULL, ADD COLUMN public_ip_at TIMESTAMP NULL")
+        conn.commit()
+
+
+def set_node_ip(conn, environment_id: int, ip: str, manual: bool = False):
+    cur = conn.cursor()
+    if manual:
+        cur.execute("UPDATE environments SET public_ip=%s, public_ip_at=NOW() WHERE id=%s", (ip or None, environment_id))
+    else:
+        cur.execute("UPDATE environments SET public_ip=%s, public_ip_at=NOW() WHERE id=%s AND (public_ip IS NULL OR public_ip<>%s)",
+                    (ip, environment_id, ip))
+    conn.commit()
+
+
 def list_environments(conn):
+    ensure_node_ip_columns(conn)
     cur = conn.cursor(dictionary=True)
     cur.execute(
-        """SELECT e.id, e.name, e.provider, e.node_uuid, e.is_production, e.active,
+        """SELECT e.id, e.name, e.provider, e.node_uuid, e.is_production, e.active, e.public_ip, e.public_ip_at,
                   e.api_token_hash IS NOT NULL AS is_remote_node,
                   e.last_sync_at, e.created_at,
                   COUNT(DISTINCT gs.genome_id) AS genome_count,
@@ -669,3 +692,34 @@ def sync_pull(conn, profile: str, min_pulls: int = 3, limit: int = 20):
         (profile, min_pulls, limit),
     )
     return cur.fetchall()
+
+
+def generation_activity(conn, days: int = 30):
+    """Темп работы Zenith -- чтобы по панели было видно, жива ли генерация
+    (вопрос «геномов будто нет, может БД снесена?» 2026-11-13: БД была цела,
+    просто темп упал в 3-4 раза и YT_TLS два месяца тестировал мусор).
+    Возвращает (daily, summary): daily -- {(date, profile): new_genomes},
+    summary -- по профилю: последний новый геном, новых за 7/30 дней,
+    экспериментов и доля успеха за 24 ч и 7 дней."""
+    cur = conn.cursor(dictionary=True)
+    cur.execute(
+        """SELECT DATE(created_at) d, profile, COUNT(*) n FROM genomes
+           WHERE family != 'control' AND created_at >= CURDATE() - INTERVAL %s DAY
+           GROUP BY d, profile""", (days - 1,))
+    daily = {(str(r["d"]), r["profile"]): r["n"] for r in cur.fetchall()}
+    cur.execute(
+        """SELECT profile, MAX(created_at) last_new,
+                  SUM(created_at >= NOW() - INTERVAL 7 DAY) new7,
+                  SUM(created_at >= NOW() - INTERVAL 30 DAY) new30
+           FROM genomes WHERE family != 'control' GROUP BY profile""")
+    summary = {r["profile"]: dict(r) for r in cur.fetchall()}
+    cur.execute(
+        """SELECT g.profile,
+                  SUM(e.tested_at >= NOW() - INTERVAL 1 DAY) exp24,
+                  ROUND(100 * AVG(CASE WHEN e.tested_at >= NOW() - INTERVAL 1 DAY THEN e.success END)) ok24,
+                  COUNT(*) exp7, ROUND(100 * AVG(e.success)) ok7, MAX(e.tested_at) last_exp
+           FROM experiments e JOIN genomes g ON g.id = e.genome_id
+           WHERE e.tested_at >= NOW() - INTERVAL 7 DAY GROUP BY g.profile""")
+    for r in cur.fetchall():
+        summary.setdefault(r["profile"], {"profile": r["profile"]}).update(r)
+    return daily, summary
