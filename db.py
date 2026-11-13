@@ -669,3 +669,34 @@ def sync_pull(conn, profile: str, min_pulls: int = 3, limit: int = 20):
         (profile, min_pulls, limit),
     )
     return cur.fetchall()
+
+
+def generation_activity(conn, days: int = 30):
+    """Темп работы Zenith -- чтобы по панели было видно, жива ли генерация
+    (вопрос «геномов будто нет, может БД снесена?» 2026-11-13: БД была цела,
+    просто темп упал в 3-4 раза и YT_TLS два месяца тестировал мусор).
+    Возвращает (daily, summary): daily -- {(date, profile): new_genomes},
+    summary -- по профилю: последний новый геном, новых за 7/30 дней,
+    экспериментов и доля успеха за 24 ч и 7 дней."""
+    cur = conn.cursor(dictionary=True)
+    cur.execute(
+        """SELECT DATE(created_at) d, profile, COUNT(*) n FROM genomes
+           WHERE family != 'control' AND created_at >= CURDATE() - INTERVAL %s DAY
+           GROUP BY d, profile""", (days - 1,))
+    daily = {(str(r["d"]), r["profile"]): r["n"] for r in cur.fetchall()}
+    cur.execute(
+        """SELECT profile, MAX(created_at) last_new,
+                  SUM(created_at >= NOW() - INTERVAL 7 DAY) new7,
+                  SUM(created_at >= NOW() - INTERVAL 30 DAY) new30
+           FROM genomes WHERE family != 'control' GROUP BY profile""")
+    summary = {r["profile"]: dict(r) for r in cur.fetchall()}
+    cur.execute(
+        """SELECT g.profile,
+                  SUM(e.tested_at >= NOW() - INTERVAL 1 DAY) exp24,
+                  ROUND(100 * AVG(CASE WHEN e.tested_at >= NOW() - INTERVAL 1 DAY THEN e.success END)) ok24,
+                  COUNT(*) exp7, ROUND(100 * AVG(e.success)) ok7, MAX(e.tested_at) last_exp
+           FROM experiments e JOIN genomes g ON g.id = e.genome_id
+           WHERE e.tested_at >= NOW() - INTERVAL 7 DAY GROUP BY g.profile""")
+    for r in cur.fetchall():
+        summary.setdefault(r["profile"], {"profile": r["profile"]}).update(r)
+    return daily, summary

@@ -2,6 +2,36 @@
 {% block title %}Zenith — обзор{% endblock %}
 {% block content %}
 <h1>Обзор по профилям и провайдерам</h1>
+<div class="card">
+  <h2>Активность Zenith</h2>
+  <p class="muted">Новые геномы по дням за {{ activity.days }} дн. (всего {{ activity.total30 }}) — видно, жива ли генерация. Эксперименты — прогоны в песочнице (новые и повторные).</p>
+  <svg viewBox="0 0 {{ activity.W }} {{ activity.H }}" width="100%" style="max-width:{{ activity.W }}px;display:block" role="img" aria-label="Новые геномы по дням">
+    <line x1="{{ activity.pad_l }}" y1="{{ activity.H - activity.pad_b }}" x2="{{ activity.W }}" y2="{{ activity.H - activity.pad_b }}" stroke="#2a2e37"/>
+    <text x="{{ activity.pad_l - 4 }}" y="12" fill="#9aa0ac" font-size="10" text-anchor="end">{{ activity.vmax }}</text>
+    <text x="{{ activity.pad_l - 4 }}" y="{{ activity.H - activity.pad_b }}" fill="#9aa0ac" font-size="10" text-anchor="end">0</text>
+    {% for b in activity.bars %}<rect x="{{ b.x }}" y="{{ b.y }}" width="{{ b.w }}" height="{{ b.h }}" fill="{{ b.color }}" rx="1"><title>{{ b.title }}</title></rect>{% endfor %}
+    {% for l in activity.labels %}<text x="{{ l.x }}" y="{{ activity.H - 4 }}" fill="#9aa0ac" font-size="10" text-anchor="middle">{{ l.text }}</text>{% endfor %}
+  </svg>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;margin:6px 0 10px">
+    {% for p, c in activity.profiles %}<span class="muted"><span style="display:inline-block;width:10px;height:10px;background:{{ c }};border-radius:2px;margin-right:4px"></span>{{ p }}</span>{% endfor %}
+  </div>
+  <div class="table-wrap">
+  <table>
+    <tr><th>Профиль</th><th>Последний новый геном (UTC)</th><th>Новых 7 дн.</th><th>Новых 30 дн.</th><th>Экспериментов 24 ч</th><th>Успех 24 ч</th><th>Успех 7 дн.</th></tr>
+    {% for r in activity.rows %}
+    <tr>
+      <td><span style="display:inline-block;width:8px;height:8px;background:{{ r.color }};border-radius:2px;margin-right:6px"></span>{{ r.profile }}</td>
+      <td>{{ r.last_new.strftime('%d.%m %H:%M') if r.last_new else '—' }}{% if r.stale %} <span class="pill warn" title="Больше 3 дней без новых геномов">застой</span>{% endif %}</td>
+      <td>{{ r.new7 or 0 }}</td><td>{{ r.new30 or 0 }}</td>
+      <td>{{ r.exp24 or 0 }}</td>
+      <td>{% if r.ok24 is not none %}{{ r.ok24|int }}%{% else %}—{% endif %}</td>
+      <td>{% if r.ok7 is not none %}{{ r.ok7|int }}%{% if r.ok7|int == 0 and (r.exp7 or 0) >= 20 %} <span class="pill warn" title="Ни одного успеха за неделю при 20+ прогонах — скорее сломан сам тест, чем все геномы плохие">тест сломан?</span>{% elif r.ok7|int >= 95 and (r.exp7 or 0) >= 20 %} <span class="pill warn" title="Почти любой геном проходит — тест ничего не различает (так было при сломанной песочнице)">не различает?</span>{% endif %}{% else %}—{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+</div>
+
 <p class="muted">Лучший на сегодня геном на каждую пару профиль×нода (по avg_score среди уже опробованных, control исключён).</p>
 
 {% for profile, rows in by_profile.items() %}
