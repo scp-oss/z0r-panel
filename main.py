@@ -382,6 +382,19 @@ def force_delete_node(environment_id: int, user: str = Depends(auth.require_logi
     return RedirectResponse(url="/nodes", status_code=303)
 
 
+@app.post("/nodes/{environment_id}/ip")
+def set_node_ip_route(environment_id: int, ip: str = Form(""), user: str = Depends(auth.require_login)):
+    """Ручная правка IP/хоста ноды (для локальной ноды и нод, которые сейчас
+    не синкаются). Удалённая нода при следующем sync перезапишет своим."""
+    conn = db.connect()
+    try:
+        db.ensure_node_ip_columns(conn)
+        db.set_node_ip(conn, environment_id, ip.strip()[:255], manual=True)
+    finally:
+        conn.close()
+    return RedirectResponse(url="/nodes", status_code=303)
+
+
 @app.post("/nodes/{environment_id}/reissue-token")
 def reissue_node_token(request: Request, environment_id: int, user: str = Depends(auth.require_login)):
     """Новый токен для уже существующей (обычно ещё не откликнувшейся)

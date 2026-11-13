@@ -66,12 +66,18 @@ PANEL_NODE_TOKEN={{ new_token }}</pre>
 
 <div class="table-wrap">
 <table>
-  <tr><th>Провайдер</th><th>UUID</th><th>Имя</th><th>Тип</th><th>Геномов</th><th>Прогонов всего</th><th>Последний sync</th><th>Создана</th><th>Действия</th></tr>
+  <tr><th>Провайдер</th><th>UUID</th><th>Имя</th><th>IP / хост</th><th>Тип</th><th>Геномов</th><th>Прогонов всего</th><th>Последний sync</th><th>Создана</th><th>Действия</th></tr>
   {% for e in environments %}
   <tr{% if not e.active %} style="opacity:0.5;"{% endif %}>
     <td>{% if e.provider %}<span class="blur">{{ e.provider }}</span>{% else %}<span class="pill warn">ещё не откликалась</span>{% endif %}</td>
     <td><code class="mono">{{ e.node_uuid[:8] if e.node_uuid else '—' }}</code></td>
     <td>{{ e.name }}</td>
+    <td>
+      {% if e.public_ip %}<span class="blur mono" title="обновлён {{ e.public_ip_at or '—' }}">{{ e.public_ip }}</span>{% else %}<span class="muted">—</span>{% endif %}
+      <form method="post" action="/nodes/{{ e.id }}/ip" style="display:inline" onsubmit="var v=prompt('IP или хост ноды {{ e.name }}', this.ip.value); if(v===null) return false; this.ip.value=v; return true;">
+        <input type="hidden" name="ip" value="{{ e.public_ip or '' }}"><button type="submit" class="link" title="Изменить IP" style="padding:0 4px">✎</button>
+      </form>
+    </td>
     <td>
       {% if e.is_production %}<span class="pill prod">prod, локальная</span>
       {% elif e.is_remote_node %}<span class="pill remote">удалённая, HTTP-sync</span>

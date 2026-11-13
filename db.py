@@ -133,10 +133,33 @@ def touch_node_sync(conn, environment_id: int):
     cur.execute("UPDATE environments SET last_sync_at=NOW() WHERE id=%s", (environment_id,))
 
 
+def ensure_node_ip_columns(conn):
+    """Идемпотентная миграция: environments.public_ip (+ когда обновлён).
+    Колонки добавлены 2026-11-13 -- панель показывает IP ноды (заблюренным),
+    удалённые ноды обновляют его сами при каждом sync (см. auth.require_node)."""
+    cur = conn.cursor()
+    cur.execute("""SELECT COUNT(*) FROM information_schema.columns
+                   WHERE table_schema = DATABASE() AND table_name = 'environments' AND column_name = 'public_ip'""")
+    if cur.fetchone()[0] == 0:
+        cur.execute("ALTER TABLE environments ADD COLUMN public_ip VARCHAR(255) NULL, ADD COLUMN public_ip_at TIMESTAMP NULL")
+        conn.commit()
+
+
+def set_node_ip(conn, environment_id: int, ip: str, manual: bool = False):
+    cur = conn.cursor()
+    if manual:
+        cur.execute("UPDATE environments SET public_ip=%s, public_ip_at=NOW() WHERE id=%s", (ip or None, environment_id))
+    else:
+        cur.execute("UPDATE environments SET public_ip=%s, public_ip_at=NOW() WHERE id=%s AND (public_ip IS NULL OR public_ip<>%s)",
+                    (ip, environment_id, ip))
+    conn.commit()
+
+
 def list_environments(conn):
+    ensure_node_ip_columns(conn)
     cur = conn.cursor(dictionary=True)
     cur.execute(
-        """SELECT e.id, e.name, e.provider, e.node_uuid, e.is_production, e.active,
+        """SELECT e.id, e.name, e.provider, e.node_uuid, e.is_production, e.active, e.public_ip, e.public_ip_at,
                   e.api_token_hash IS NOT NULL AS is_remote_node,
                   e.last_sync_at, e.created_at,
                   COUNT(DISTINCT gs.genome_id) AS genome_count,

@@ -102,6 +102,16 @@ def require_node(request: Request) -> dict:
         # require_node -- общая точка для ВСЕХ authenticated-запросов
         # (push/pull/bootstrap И db_api.py), обновляем тут одним местом.
         db.touch_node_sync(conn, env["id"])
+        # Реальный IP ноды: панель за Cloudflare -> CF-Connecting-IP, иначе
+        # X-Forwarded-For / адрес соединения. Показывается на /nodes заблюренным.
+        node_ip = (request.headers.get("cf-connecting-ip") or request.headers.get("x-forwarded-for", "").split(",")[0]
+                   or (request.client.host if request.client else "")).strip()
+        if node_ip:
+            try:
+                db.ensure_node_ip_columns(conn)
+                db.set_node_ip(conn, env["id"], node_ip)
+            except Exception as e:
+                print(f"require_node: не смог сохранить IP ноды: {e}", file=sys.stderr)
     finally:
         conn.close()
     return env
