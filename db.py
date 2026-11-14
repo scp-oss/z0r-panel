@@ -723,3 +723,25 @@ def generation_activity(conn, days: int = 30):
     for r in cur.fetchall():
         summary.setdefault(r["profile"], {"profile": r["profile"]}).update(r)
     return daily, summary
+
+
+def record_voice_region_checks(conn, environment_id, sweep_id, strategy_n, results, source="sweep"):
+    """Прогон живой VOICE_UDP-стратегии по голосовым регионам Discord
+    (z2r_autobench voice_region_sweep.sh) -- по строке на регион, см.
+    db/migrations/008_voice_region_checks.sql."""
+    rows = [(environment_id, str(sweep_id)[:36], (source or "sweep")[:32],
+             int(strategy_n) if strategy_n not in (None, "") else None,
+             str(r["region"])[:32], bool(r["success"]),
+             int(r["connect_ms"]) if isinstance(r.get("connect_ms"), (int, float)) else None,
+             (r.get("note") or "")[:255])
+            for r in results if r.get("success") is not None]
+    if not rows:
+        return 0
+    cur = conn.cursor()
+    cur.executemany(
+        """INSERT INTO voice_region_checks
+               (environment_id, sweep_id, source, strategy_n, region, success, connect_ms, note)
+           VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",
+        rows,
+    )
+    return len(rows)
