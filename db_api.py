@@ -199,3 +199,30 @@ def log_ban_event(body: BanEventIn, node: dict = Depends(auth.require_node)):
     finally:
         conn.close()
     return {"ok": True}
+
+
+class VoiceRegionResultIn(BaseModel):
+    region: str
+    success: bool
+    connect_ms: int | None = None
+    note: str | None = None
+
+
+class VoiceRegionChecksIn(BaseModel):
+    sweep_id: str
+    strategy_n: int | None = None
+    source: str = "sweep"
+    results: list[VoiceRegionResultIn]
+
+
+@router.post("/voice_region_checks")
+def record_voice_region_checks(body: VoiceRegionChecksIn, node: dict = Depends(auth.require_node)):
+    """Прогон живой VOICE_UDP-стратегии по голосовым регионам Discord с
+    ноды в ZENITH_DB_MODE=api (Zenith record_voice_regions.py)."""
+    rows = [r.model_dump() if hasattr(r, "model_dump") else r.dict() for r in body.results]
+    conn = db.connect()
+    try:
+        n = db.record_voice_region_checks(conn, node["id"], body.sweep_id, body.strategy_n, rows, body.source)
+    finally:
+        conn.close()
+    return {"ok": True, "rows": n}
